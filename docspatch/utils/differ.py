@@ -3,10 +3,10 @@ import re
 
 def normalize(source: str) -> str:
     """Strip whitespace and comments so cosmetic changes don't trigger LLM."""
-    source = re.sub(r"#.*", "", source)          # inline comments
+    source = re.sub(r"#.*", "", source)  # inline comments
     source = re.sub(r'""".*?"""', "", source, flags=re.DOTALL)  # docstrings
     source = re.sub(r"'''.*?'''", "", source, flags=re.DOTALL)
-    source = re.sub(r"\s+", " ", source)         # collapse all whitespace
+    source = re.sub(r"\s+", " ", source)  # collapse all whitespace
     return source.strip()
 
 

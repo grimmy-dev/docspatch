@@ -6,8 +6,8 @@ from docspatch.graph.state import DocpatchState
 
 console = Console()
 
-LARGE_THRESHOLD = 50   # functions
-TOKENS_PER_FN = 300    # rough estimate: ~200 input + ~100 output
+LARGE_THRESHOLD = 50  # functions
+TOKENS_PER_FN = 300  # rough estimate: ~200 input + ~100 output
 
 
 def _prompt_strategy(n_functions: int, n_files: int, token_estimate: int) -> str:

@@ -30,9 +30,7 @@ def _extract_text(content: str | list) -> str:
 
 def _build_prompt(batch: list[dict], style: str) -> str:
     guide = _STYLE_GUIDE.get(style, _STYLE_GUIDE["compact"])
-    fn_blocks = "\n---\n".join(
-        f"Name: {fn['name']}\n{fn['body']}" for fn in batch
-    )
+    fn_blocks = "\n---\n".join(f"Name: {fn['name']}\n{fn['body']}" for fn in batch)
     return (
         f"Style: {guide}\n\n"
         "Return a JSON array, one entry per function in the same order:\n"
@@ -47,7 +45,7 @@ def _build_rerun_prompt(fn: dict, style: str) -> str:
     feedback = fn.get("feedback", "")
     return (
         f"Style: {guide}\n\n"
-        f"Previous docstring: \"{prev}\"\n"
+        f'Previous docstring: "{prev}"\n'
         f"User feedback: {feedback}\n\n"
         "Return a JSON array with one entry:\n"
         '[{"name": "fn_name", "docstring": "improved content without triple quotes"}]\n\n'
@@ -56,11 +54,17 @@ def _build_rerun_prompt(fn: dict, style: str) -> str:
 
 
 def _parse_response(text: str, batch: list[dict]) -> list[dict]:
-    text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    text = (
+        text.strip()
+        .removeprefix("```json")
+        .removeprefix("```")
+        .removesuffix("```")
+        .strip()
+    )
     try:
         items: list[dict] = json.loads(text)
         by_name = {item["name"]: item["docstring"] for item in items}
-    except (json.JSONDecodeError, KeyError, TypeError):
+    except json.JSONDecodeError, KeyError, TypeError:
         return []
 
     return [
@@ -104,13 +108,19 @@ def docwriter(state: DocpatchState) -> dict:
             except Exception as e:
                 raise classify_llm_error(e) from e
         step("Regenerating", f"{len(rerun_results)} docs ready")
-        return {"generated_docs": rerun_results, "rerun_docs": [], "token_actual": token_actual}
+        return {
+            "generated_docs": rerun_results,
+            "rerun_docs": [],
+            "token_actual": token_actual,
+        }
 
     # Normal path: process batches
     generated: list[dict] = []
     total_batches = len(state["batches"])
     for i, batch in enumerate(state["batches"], 1):
-        label = f"Generating  ({i}/{total_batches})" if total_batches > 1 else "Generating"
+        label = (
+            f"Generating  ({i}/{total_batches})" if total_batches > 1 else "Generating"
+        )
         messages = [
             SystemMessage(content=_SYSTEM),
             HumanMessage(content=_build_prompt(batch, style)),

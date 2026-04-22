@@ -31,11 +31,17 @@ def clg_writer(state: DocpatchState) -> dict:
     guide = _STYLE_GUIDE.get(style, _STYLE_GUIDE["compact"])
 
     if not diff and not log:
-        return {"generated_docs": [{"name": "CHANGELOG", "file": "CHANGELOG.md", "generated_doc": "No changes detected."}]}
+        return {
+            "generated_docs": [
+                {
+                    "name": "CHANGELOG",
+                    "file": "CHANGELOG.md",
+                    "generated_doc": "No changes detected.",
+                }
+            ]
+        }
 
-    log_text = "\n".join(
-        f"[{c['hash']}] {c['author']} — {c['message']}" for c in log
-    )
+    log_text = "\n".join(f"[{c['hash']}] {c['author']} — {c['message']}" for c in log)
     # Cap diff size to avoid token overflow
     diff_truncated = diff[:8000] + ("\n... (truncated)" if len(diff) > 8000 else "")
 

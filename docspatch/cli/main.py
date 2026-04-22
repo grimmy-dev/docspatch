@@ -65,14 +65,15 @@ _CUSTOM = "↩  Enter custom model name"
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+
 class Style(str, Enum):
     compact = "compact"
     detailed = "detailed"
 
 
 _dry_run = typer.Option(False, "--dry-run", help="Estimate tokens/cost, no LLM calls")
-_tokens  = typer.Option(False, "--tokens",  help="Show token usage + cost after run")
-_batch   = typer.Option(False, "--batch",   help="Force batch mode")
+_tokens = typer.Option(False, "--tokens", help="Show token usage + cost after run")
+_batch = typer.Option(False, "--batch", help="Force batch mode")
 
 
 def _base_state(
@@ -87,6 +88,7 @@ def _base_state(
     to_ref: str = "",
 ) -> dict:
     from docspatch.utils.config import get
+
     effective_style = style or get("style") or "compact"
     return {
         "command": command,
@@ -120,7 +122,9 @@ def _run(graph, state: dict, show_tokens: bool) -> None:
         if state.get("dry_run"):
             estimate = final.get("token_estimate", 0)
             cost = (estimate / 1_000_000) * 1.00
-            console.print(f"\n  [dim]Dry run — estimated tokens: {estimate:,}  (~${cost:.3f})[/dim]")
+            console.print(
+                f"\n  [dim]Dry run — estimated tokens: {estimate:,}  (~${cost:.3f})[/dim]"
+            )
         elif show_tokens:
             tokens = final.get("token_actual", 0)
             console.print(f"\n  [dim]Tokens used: {tokens:,}[/dim]")
@@ -134,6 +138,7 @@ def _run(graph, state: dict, show_tokens: bool) -> None:
 
 def _require_git() -> None:
     from docspatch.utils.git import is_git_repo
+
     if not is_git_repo():
         console.print("  [red]Error:[/red] Not inside a git repository.")
         raise typer.Exit(code=1)
@@ -141,6 +146,7 @@ def _require_git() -> None:
 
 def _require_api_key() -> None:
     from docspatch.utils.config import get_api_key
+
     if not get_api_key():
         console.print(
             "  [red]No API key configured.[/red]\n"
@@ -153,6 +159,7 @@ def _require_api_key() -> None:
 # Commands
 # ---------------------------------------------------------------------------
 
+
 @app.command()
 def setup() -> None:
     """Interactive first-time setup — choose provider, enter API key, set style."""
@@ -163,16 +170,18 @@ def setup() -> None:
 
     _print_banner(full=True)
 
-    q_style = QStyle([
-        ("qmark",        "fg:#00d7ff bold"),
-        ("question",     "bold"),
-        ("answer",       "fg:#00d7ff bold"),
-        ("pointer",      "fg:#00d7ff bold"),
-        ("highlighted",  "fg:#00d7ff bold"),
-        ("selected",     "fg:#00d7ff"),
-        ("separator",    "fg:#555555"),
-        ("instruction",  "fg:#555555 italic"),
-    ])
+    q_style = QStyle(
+        [
+            ("qmark", "fg:#00d7ff bold"),
+            ("question", "bold"),
+            ("answer", "fg:#00d7ff bold"),
+            ("pointer", "fg:#00d7ff bold"),
+            ("highlighted", "fg:#00d7ff bold"),
+            ("selected", "fg:#00d7ff"),
+            ("separator", "fg:#555555"),
+            ("instruction", "fg:#555555 italic"),
+        ]
+    )
 
     provider_name = questionary.select(
         "Provider:",
@@ -204,13 +213,20 @@ def setup() -> None:
 
     style_pick = questionary.select(
         "Default style:",
-        choices=["compact  — one-sentence summary", "detailed — full Args/Returns/Raises"],
+        choices=[
+            "compact  — one-sentence summary",
+            "detailed — full Args/Returns/Raises",
+        ],
         style=q_style,
     ).ask()
-    style = "detailed" if style_pick and style_pick.startswith("detailed") else "compact"
+    style = (
+        "detailed" if style_pick and style_pick.startswith("detailed") else "compact"
+    )
 
     config = load()
-    config.setdefault("defaults", {}).update({"style": style, "model": model, "review_model": review_model})
+    config.setdefault("defaults", {}).update(
+        {"style": style, "model": model, "review_model": review_model}
+    )
     config.setdefault("keys", {})[p["key_field"]] = api_key
     save(config)
 
@@ -221,7 +237,9 @@ def setup() -> None:
 @app.command()
 def config(
     action: str = typer.Argument("show", help="show | set"),
-    key: Optional[str] = typer.Argument(None, help="Key to set (e.g. style, model, google_api_key)"),
+    key: Optional[str] = typer.Argument(
+        None, help="Key to set (e.g. style, model, google_api_key)"
+    ),
     value: Optional[str] = typer.Argument(None, help="Value to set"),
 ) -> None:
     """Show or update config.  Examples: dp config show  /  dp config set style detailed"""
@@ -230,7 +248,7 @@ def config(
     cfg = load()
 
     if action == "show":
-        console.print(f"\n  [bold]~/.docspatch/config.toml[/bold]\n")
+        console.print("\n  [bold]~/.docspatch/config.toml[/bold]\n")
         for section, entries in cfg.items():
             console.print(f"  [dim][{section}][/dim]")
             for k, v in entries.items():
@@ -265,7 +283,10 @@ def init(
     if not dry_run:
         _require_api_key()
     from docspatch.graph.graphs.init_graph import build
-    state = _base_state("init", style=style.value, dry_run=dry_run, show_tokens=tokens, is_init=True)
+
+    state = _base_state(
+        "init", style=style.value, dry_run=dry_run, show_tokens=tokens, is_init=True
+    )
     _run(build(), state, tokens)
 
 
@@ -283,8 +304,15 @@ def docs(
     if not dry_run:
         _require_api_key()
     from docspatch.graph.graphs.docs_graph import build
-    state = _base_state("docs", target_path=path or "", style=style.value,
-                        dry_run=dry_run, show_tokens=tokens, force_batch=batch)
+
+    state = _base_state(
+        "docs",
+        target_path=path or "",
+        style=style.value,
+        dry_run=dry_run,
+        show_tokens=tokens,
+        force_batch=batch,
+    )
     _run(build(), state, tokens)
 
 
@@ -301,8 +329,14 @@ def readme(
     if not dry_run:
         _require_api_key()
     from docspatch.graph.graphs.readme_graph import build
-    state = _base_state("readme", target_path=path or "README.md",
-                        style=style.value, dry_run=dry_run, show_tokens=tokens)
+
+    state = _base_state(
+        "readme",
+        target_path=path or "README.md",
+        style=style.value,
+        dry_run=dry_run,
+        show_tokens=tokens,
+    )
     _run(build(), state, tokens)
 
 
@@ -312,8 +346,12 @@ def clg(
     dry_run: bool = _dry_run,
     tokens: bool = _tokens,
     batch: bool = _batch,
-    from_ref: Optional[str] = typer.Option(None, "--from", help="Start commit or tag (e.g. v1.0.0)"),
-    to_ref: Optional[str] = typer.Option(None, "--to", help="End commit or tag (default: HEAD)"),
+    from_ref: Optional[str] = typer.Option(
+        None, "--from", help="Start commit or tag (e.g. v1.0.0)"
+    ),
+    to_ref: Optional[str] = typer.Option(
+        None, "--to", help="End commit or tag (default: HEAD)"
+    ),
 ) -> None:
     """Generate changelog from git diff.
 
@@ -327,9 +365,16 @@ def clg(
     if not dry_run:
         _require_api_key()
     from docspatch.graph.graphs.clg_graph import build
-    state = _base_state("clg", style=style.value, dry_run=dry_run,
-                        show_tokens=tokens, force_batch=batch,
-                        from_ref=from_ref or "", to_ref=to_ref or "")
+
+    state = _base_state(
+        "clg",
+        style=style.value,
+        dry_run=dry_run,
+        show_tokens=tokens,
+        force_batch=batch,
+        from_ref=from_ref or "",
+        to_ref=to_ref or "",
+    )
     _run(build(), state, tokens)
 
 
@@ -346,8 +391,14 @@ def review(
     if not dry_run:
         _require_api_key()
     from docspatch.graph.graphs.review_graph import build
-    state = _base_state("review", target_path=path or "",
-                        style=style.value, dry_run=dry_run, show_tokens=tokens)
+
+    state = _base_state(
+        "review",
+        target_path=path or "",
+        style=style.value,
+        dry_run=dry_run,
+        show_tokens=tokens,
+    )
     _run(build(), state, tokens)
 
 

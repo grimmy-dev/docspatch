@@ -5,10 +5,10 @@ class DocpatchState(TypedDict):
     # context
     command: str
     target_path: str
-    style: str          # compact | detailed
+    style: str  # compact | detailed
     is_init: bool
-    from_ref: str       # clg: start commit/tag (empty = all history)
-    to_ref: str         # clg: end commit/tag (empty = HEAD)
+    from_ref: str  # clg: start commit/tag (empty = all history)
+    to_ref: str  # clg: end commit/tag (empty = HEAD)
 
     # files
     files: list[str]
@@ -27,7 +27,7 @@ class DocpatchState(TypedDict):
     generated_docs: list[dict]
     accepted_docs: list[dict]
     skipped_docs: list[dict]
-    feedback: dict[str, str]   # function name → user feedback
+    feedback: dict[str, str]  # function name → user feedback
     rerun_docs: list[dict]
 
     # tokens + flags

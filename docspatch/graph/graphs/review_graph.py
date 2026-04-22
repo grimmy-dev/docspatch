@@ -21,7 +21,9 @@ def build() -> object:
 
     g.set_entry_point("scanner")
     g.add_edge("scanner", "file_hash_check")
-    g.add_conditional_edges("file_hash_check", _has_changed_files, {"continue": "ast_parser", "exit": END})
+    g.add_conditional_edges(
+        "file_hash_check", _has_changed_files, {"continue": "ast_parser", "exit": END}
+    )
     g.add_edge("ast_parser", "reviewer")
     g.add_edge("reviewer", END)
 

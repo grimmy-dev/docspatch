@@ -46,17 +46,21 @@ def _parse_file(filepath: str) -> list[dict]:
         body_source = "\n".join(lines[node.lineno - 1 : node.end_lineno])
         prefix = "async def" if isinstance(node, ast.AsyncFunctionDef) else "def"
 
-        functions.append({
-            "name": node.name,
-            "file": filepath,
-            "line_start": node.lineno,
-            "line_end": node.end_lineno,
-            "signature": f"{prefix} {node.name}({ast.unparse(node.args)})",
-            "body": body_source,
-            "existing_doc": _existing_doc(node),
-            "body_hash": hashlib.sha256(normalize(body_source).encode()).hexdigest(),
-            "is_significant": True,  # function_hash_check updates this
-        })
+        functions.append(
+            {
+                "name": node.name,
+                "file": filepath,
+                "line_start": node.lineno,
+                "line_end": node.end_lineno,
+                "signature": f"{prefix} {node.name}({ast.unparse(node.args)})",
+                "body": body_source,
+                "existing_doc": _existing_doc(node),
+                "body_hash": hashlib.sha256(
+                    normalize(body_source).encode()
+                ).hexdigest(),
+                "is_significant": True,  # function_hash_check updates this
+            }
+        )
 
     return functions
 

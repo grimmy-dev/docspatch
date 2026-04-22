@@ -14,16 +14,19 @@ def get_llm(model_key: str = "model") -> BaseChatModel:
     if google_key := keys.get("google_api_key"):
         os.environ["GOOGLE_API_KEY"] = google_key
         from langchain_google_genai import ChatGoogleGenerativeAI
+
         return ChatGoogleGenerativeAI(model=model_name)
 
     if openai_key := keys.get("openai_api_key"):
         os.environ["OPENAI_API_KEY"] = openai_key
         from langchain_openai import ChatOpenAI
+
         return ChatOpenAI(model=model_name)
 
     if anthropic_key := keys.get("anthropic_api_key"):
         os.environ["ANTHROPIC_API_KEY"] = anthropic_key
         from langchain_anthropic import ChatAnthropic
+
         return ChatAnthropic(model=model_name)  # type: ignore[call-arg]
 
     raise RuntimeError(

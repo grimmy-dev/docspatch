@@ -9,8 +9,7 @@ def get_repo(path: str | None = None) -> Repo:
         return Repo(search_path, search_parent_directories=True)
     except InvalidGitRepositoryError:
         raise RuntimeError(
-            f"No git repository found at {search_path}. "
-            "docspatch requires a git repo."
+            f"No git repository found at {search_path}. docspatch requires a git repo."
         )
 
 
@@ -57,11 +56,7 @@ def get_changed_files(repo: Repo | None = None) -> list[str]:
     # untracked
     changed.update(r.untracked_files)
 
-    return [
-        str(root / p)
-        for p in changed
-        if p.endswith(".py")
-    ]
+    return [str(root / p) for p in changed if p.endswith(".py")]
 
 
 def get_diff(
@@ -91,10 +86,12 @@ def get_log(
     rev = f"{from_ref}..{to_ref}" if from_ref and to_ref else (to_ref or None)
     commits = []
     for commit in r.iter_commits(rev, max_count=n):
-        commits.append({
-            "hash": commit.hexsha[:8],
-            "message": commit.message.strip(),
-            "author": str(commit.author),
-            "date": commit.committed_datetime.isoformat(),
-        })
+        commits.append(
+            {
+                "hash": commit.hexsha[:8],
+                "message": commit.message.strip(),
+                "author": str(commit.author),
+                "date": commit.committed_datetime.isoformat(),
+            }
+        )
     return commits

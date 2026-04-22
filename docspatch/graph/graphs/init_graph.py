@@ -3,7 +3,12 @@ from langgraph.graph import END, StateGraph
 from docspatch.graph.nodes.ast_parser import ast_parser
 from docspatch.graph.nodes.batcher import batcher
 from docspatch.graph.nodes.docwriter import docwriter
-from docspatch.graph.nodes.preview import collect_feedback, has_skipped, preview_all, prompt_rerun
+from docspatch.graph.nodes.preview import (
+    collect_feedback,
+    has_skipped,
+    preview_all,
+    prompt_rerun,
+)
 from docspatch.graph.nodes.scanner import scanner
 from docspatch.graph.nodes.size_check import size_check
 from docspatch.graph.nodes.writer import cache_update, writer
@@ -42,14 +47,18 @@ def build() -> object:
     g.set_entry_point("scanner")
     g.add_edge("scanner", "ast_parser")
     g.add_edge("ast_parser", "smart_filter")
-    g.add_conditional_edges("smart_filter", _has_functions, {"continue": "size_check", "exit": END})
+    g.add_conditional_edges(
+        "smart_filter", _has_functions, {"continue": "size_check", "exit": END}
+    )
     g.add_edge("size_check", "batcher")
     g.add_edge("batcher", "docwriter")
     g.add_edge("docwriter", "preview_all")
     g.add_edge("preview_all", "writer")
     g.add_edge("writer", "cache_update")
     g.add_edge("cache_update", "prompt_rerun")
-    g.add_conditional_edges("prompt_rerun", has_skipped, {"rerun": "collect_feedback", "done": END})
+    g.add_conditional_edges(
+        "prompt_rerun", has_skipped, {"rerun": "collect_feedback", "done": END}
+    )
     g.add_edge("collect_feedback", "docwriter")
 
     return g.compile()

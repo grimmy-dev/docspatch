@@ -33,7 +33,9 @@ def preview_all(state: DocpatchState) -> dict:
     for i, doc in enumerate(docs, 1):
         _show_doc_panel(doc, i, total)
 
-    choice = _prompt_choice("Accept all? [y] review individually [r] quit [q]", {"y", "r", "q"})
+    choice = _prompt_choice(
+        "Accept all? [y] review individually [r] quit [q]", {"y", "r", "q"}
+    )
 
     if choice == "q":
         raise SystemExit(0)
@@ -75,6 +77,7 @@ def collect_feedback(state: DocpatchState) -> dict:
 
 
 # --- routing ---
+
 
 def has_skipped(state: DocpatchState) -> str:
     return "rerun" if state.get("skipped_docs") else "done"

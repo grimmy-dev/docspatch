@@ -27,7 +27,9 @@ def _format_docstring(doc: str, indent: str) -> list[str]:
     return result
 
 
-def _docstring_span(source: str, fn_name: str, fn_line_start: int) -> tuple[int, int] | None:
+def _docstring_span(
+    source: str, fn_name: str, fn_line_start: int
+) -> tuple[int, int] | None:
     """Return (start, end) 0-indexed line range of existing docstring, exclusive end."""
     try:
         tree = ast.parse(source)
@@ -55,6 +57,7 @@ def _resolve_path(filepath: str) -> Path:
     if p.is_absolute():
         return p
     from docspatch.utils.git import get_repo, get_root
+
     return get_root(get_repo()) / filepath
 
 
