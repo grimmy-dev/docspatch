@@ -1,27 +1,15 @@
 import questionary
-from questionary import Style as QStyle
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
 from docspatch.graph.state import DocpatchState
+from docspatch.utils.ui import Q_STYLE
 
 console = Console()
 
 LARGE_THRESHOLD = 50
 TOKENS_PER_FN = 300
-
-_Q_STYLE = QStyle(
-    [
-        ("qmark", "fg:#00d7ff bold"),
-        ("question", "bold"),
-        ("answer", "fg:#00d7ff bold"),
-        ("pointer", "fg:#00d7ff bold"),
-        ("highlighted", "fg:#00d7ff bold"),
-        ("selected", "fg:#00d7ff"),
-        ("instruction", "fg:#555555 italic"),
-    ]
-)
 
 
 def _prompt_strategy(n_functions: int, n_files: int, token_estimate: int) -> str:
@@ -46,10 +34,14 @@ def _prompt_strategy(n_functions: int, n_files: int, token_estimate: int) -> str
             "Smart — only undocumented functions",
             "Quit",
         ],
-        style=_Q_STYLE,
+        instruction="(↑↓ navigate  ·  Enter select  ·  Esc cancel)",
+        style=Q_STYLE,
     ).ask()
 
-    if not choice or choice.startswith("Quit"):
+    if choice is None:  # Esc pressed
+        console.print("\n  [yellow]Cancelled.[/yellow]")
+        raise SystemExit(0)
+    if choice.startswith("Quit"):
         return "q"
     if choice.startswith("Pick"):
         return "p"
@@ -63,7 +55,7 @@ def _pick_files(functions: list[dict]) -> list[dict]:
     chosen = questionary.checkbox(
         "Select files to process:",
         choices=files,
-        style=_Q_STYLE,
+        style=Q_STYLE,
     ).ask()
 
     if not chosen:

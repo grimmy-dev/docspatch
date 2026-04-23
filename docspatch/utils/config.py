@@ -8,7 +8,7 @@ CONFIG_PATH = CONFIG_DIR / "config.toml"
 _DEFAULTS: dict = {
     "defaults": {
         "style": "compact",
-        "model": "gemini-2.0-flash",
+        "model": "gemini-2.5-flash",
         "review_model": "gemini-2.5-pro",
     },
     "keys": {},
@@ -16,6 +16,7 @@ _DEFAULTS: dict = {
 
 
 def load() -> dict:
+    """Load configuration from file or return defaults."""
     if not CONFIG_PATH.exists():
         return _DEFAULTS.copy()
     try:
@@ -26,17 +27,22 @@ def load() -> dict:
 
 
 def save(config: dict) -> None:
+    """Save configuration dictionary to file."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     with CONFIG_PATH.open("wb") as f:
         tomli_w.dump(config, f)
 
 
 def get(key: str, section: str = "defaults") -> str | None:
+    """Get a configuration value by key and optional section."""
     config = load()
     return config.get(section, {}).get(key)
 
 
 def set_value(key: str, value: str, section: str = "defaults") -> None:
+    """
+    Set a configuration value by key and optional section, saving the config.
+    """
     config = load()
     config.setdefault(section, {})[key] = value
     save(config)
@@ -56,6 +62,9 @@ def get_api_key() -> tuple[str, str] | None:
 
 
 def require_api_key() -> tuple[str, str]:
+    """
+    Return (provider, key) for first configured provider, raising an error if none is found.
+    """
     result = get_api_key()
     if result is None:
         raise RuntimeError(

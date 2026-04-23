@@ -10,24 +10,32 @@ from docspatch.graph.nodes.writer import cache_update, writer
 from docspatch.graph.state import DocpatchState
 
 
+def _set_changed_files(state: DocpatchState) -> dict:
+    """For init, all scanned files are considered changed."""
+    return {"changed_files": state["files"]}
+
+
 def _smart_filter(state: DocpatchState) -> dict:
-    """For init: only process undocumented functions."""
+    """For init, only process undocumented functions."""
     undocumented = [
         {**fn, "is_significant": True}
         for fn in state["parsed_functions"]
         if not fn.get("existing_doc")
     ]
-    return {"parsed_functions": undocumented, "changed_files": state["files"]}
+    return {"parsed_functions": undocumented}
 
 
 def _has_functions(state: DocpatchState) -> str:
+    """Return 'continue' if parsed_functions exist, otherwise 'exit'."""
     return "continue" if state["parsed_functions"] else "exit"
 
 
 def build() -> object:
+    """Build the state graph for the docpatch process."""
     g = StateGraph(DocpatchState)
 
     g.add_node("scanner", scanner)
+    g.add_node("set_changed_files", _set_changed_files)
     g.add_node("ast_parser", ast_parser)
     g.add_node("smart_filter", _smart_filter)
     g.add_node("size_check", size_check)
@@ -38,7 +46,8 @@ def build() -> object:
     g.add_node("cache_update", cache_update)
 
     g.set_entry_point("scanner")
-    g.add_edge("scanner", "ast_parser")
+    g.add_edge("scanner", "set_changed_files")
+    g.add_edge("set_changed_files", "ast_parser")
     g.add_edge("ast_parser", "smart_filter")
     g.add_conditional_edges(
         "smart_filter", _has_functions, {"continue": "size_check", "exit": END}

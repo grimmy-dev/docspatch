@@ -34,5 +34,4 @@ class DocpatchState(TypedDict):
     doc_coverage: dict[str, int]  # file → % documented
     token_estimate: int
     token_actual: int
-    show_tokens: bool
     dry_run: bool

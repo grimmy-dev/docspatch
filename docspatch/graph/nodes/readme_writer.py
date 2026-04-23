@@ -3,7 +3,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from docspatch.graph.state import DocpatchState
 from docspatch.utils.errors import classify_llm_error
 from docspatch.utils.git import get_repo, get_root
-from docspatch.utils.llm import get_llm
+from docspatch.utils.llm import extract_text, extract_tokens, get_llm
 from docspatch.utils.ui import spinning
 
 _SYSTEM = (
@@ -52,17 +52,10 @@ def readme_writer(state: DocpatchState) -> dict:
     except Exception as e:
         raise classify_llm_error(e) from e
 
-    token_actual = state.get("token_actual", 0)
-    meta = getattr(response, "usage_metadata", None)
-    if meta:
-        token_actual += meta.get("total_tokens", 0) or (
-            meta.get("input_tokens", 0) + meta.get("output_tokens", 0)
-        )
-
-    # Store in generated_docs as a single entry for preview node to handle
+    token_actual = state.get("token_actual", 0) + extract_tokens(response)
     readme_doc = {
         "name": "README.md",
-        "file": state.get("target_path", "README.md"),
-        "generated_doc": response.content,
+        "file": state.get("target_path") or "README.md",
+        "generated_doc": extract_text(response.content),
     }
     return {"generated_docs": [readme_doc], "token_actual": token_actual}

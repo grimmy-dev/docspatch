@@ -1,15 +1,28 @@
 from enum import Enum
 from typing import Optional
 
+import questionary
 import typer
 from rich.console import Console
+
+from docspatch.utils.ui import Q_STYLE
 
 app = typer.Typer(
     name="dp",
     help="docspatch — auto-generate and update code documentation",
-    no_args_is_help=True,
+    no_args_is_help=False,
+    invoke_without_command=True,
 )
 console = Console()
+
+
+@app.callback(invoke_without_command=True)
+def show_help(ctx: typer.Context) -> None:
+    if ctx.invoked_subcommand is None:
+        _print_banner(full=True)
+        console.print(ctx.get_help())
+        raise typer.Exit()
+
 
 # ---------------------------------------------------------------------------
 # Banner
@@ -24,12 +37,13 @@ _BANNER_FULL = """\
   [bold cyan]██████╔╝╚██████╔╝╚██████╗███████║██║     ██║  ██║   ██║   ╚██████╗██║  ██║[/bold cyan]
   [bold cyan]╚═════╝  ╚═════╝  ╚═════╝╚══════╝╚═╝     ╚═╝  ╚═╝   ╚═╝    ╚═════╝╚═╝  ╚═╝[/bold cyan]
 
-  [dim]                auto-document your Python[/dim]
-  [dim]                BYOK · git-aware · token-efficient · v0.1.0[/dim]
+  [dim]  Auto-generate docstrings, READMEs, and changelogs from your git diff.[/dim]
+  [dim]  Only what changed gets documented — BYOK · git-aware · v0.1.0[/dim]
+  [dim]  Providers: Google Gemini · OpenAI · Anthropic   Run [/dim][bold dim]dp setup[/bold dim][dim] to start.[/dim]
 
 """
 
-_BANNER_INLINE = "  [bold cyan]◈ docspatch[/bold cyan]  [dim]v0.1.0[/dim]\n"
+_BANNER_INLINE = "  [bold cyan]◈ docspatch[/bold cyan]  [dim]v0.1.0  ·  docstrings · README · changelog · BYOK[/dim]\n"
 
 
 def _print_banner(full: bool = False) -> None:
@@ -83,6 +97,37 @@ _PROVIDERS: dict[str, dict] = {
 _CUSTOM = "↩  Enter custom model name"
 
 
+def _pick_model(label: str, choices: list[str]) -> str | None:
+    """Select from list; '↩ Enter custom' falls back to text input. Returns None if cancelled."""
+    opts = choices + [_CUSTOM]
+    pick = questionary.select(label, choices=opts, style=Q_STYLE).ask()
+    if pick is None:
+        return None
+    if pick == _CUSTOM:
+        custom = questionary.text("  Model name:", style=Q_STYLE).ask()
+        return custom.strip() or None
+    return pick
+
+
+def _current_provider_name(cfg: dict) -> str | None:
+    """Return provider display name using stored provider_key, falling back to first found key."""
+    provider_key: str | None = cfg.get("defaults", {}).get("provider_key")
+    if provider_key:
+        return next(
+            (
+                pname
+                for pname, p in _PROVIDERS.items()
+                if p["key_field"] == provider_key
+            ),
+            None,
+        )
+    keys = cfg.get("keys", {})
+    return next(
+        (pname for pname, p in _PROVIDERS.items() if keys.get(p["key_field"])),
+        None,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -94,16 +139,14 @@ class Style(str, Enum):
 
 
 _dry_run = typer.Option(False, "--dry-run", help="Estimate tokens/cost, no LLM calls")
-_tokens = typer.Option(False, "--tokens", help="Show token usage + cost after run")
 _batch = typer.Option(False, "--batch", help="Force batch mode")
 
 
 def _base_state(
     command: str,
     target_path: str = "",
-    style: str = "compact",
+    style: Optional[str] = None,
     dry_run: bool = False,
-    show_tokens: bool = False,
     force_batch: bool = False,
     is_init: bool = False,
     from_ref: str = "",
@@ -133,34 +176,20 @@ def _base_state(
         "doc_coverage": {},
         "token_estimate": 0,
         "token_actual": 0,
-        "show_tokens": show_tokens,
         "dry_run": dry_run,
     }
 
 
 def _interactive_model_switch() -> bool:
     """Offer model/provider switch after rate limit. Returns True if user switched."""
-    import questionary
-    from questionary import Style as QStyle
     from docspatch.utils.config import load, save
-
-    q_style = QStyle(
-        [
-            ("qmark", "fg:#00d7ff bold"),
-            ("question", "bold"),
-            ("answer", "fg:#00d7ff bold"),
-            ("pointer", "fg:#00d7ff bold"),
-            ("highlighted", "fg:#00d7ff bold"),
-            ("selected", "fg:#00d7ff"),
-            ("instruction", "fg:#555555 italic"),
-        ]
-    )
 
     console.print("\n  [yellow]Rate limit hit.[/yellow]  Switch model or provider?\n")
     action = questionary.select(
         "What to do:",
         choices=["Switch model", "Switch provider", "Quit"],
-        style=q_style,
+        instruction="(↑↓ navigate  ·  Enter select  ·  Esc cancel)",
+        style=Q_STYLE,
     ).ask()
 
     if not action or action == "Quit":
@@ -169,46 +198,51 @@ def _interactive_model_switch() -> bool:
     cfg = load()
 
     if action == "Switch model":
-        keys_cfg = cfg.get("keys", {})
-        provider_name = next(
-            (pname for pname, p in _PROVIDERS.items() if keys_cfg.get(p["key_field"])),
-            None,
-        )
-        if provider_name:
-            model_list = _PROVIDERS[provider_name]["models"]
-            opts = model_list + [_CUSTOM]
-            pick = questionary.select(
-                "Select model:", choices=opts, style=q_style
-            ).ask()
-            if not pick or pick == _CUSTOM:
-                pick = questionary.text("Model name:", style=q_style).ask()
-            if pick and pick.strip():
-                cfg.setdefault("defaults", {})["model"] = pick.strip()
-                save(cfg)
-                console.print(f"  [green]✓[/green]  Model → {pick.strip()}")
-                return True
+        provider_name = _current_provider_name(cfg)
+        if not provider_name:
+            console.print(
+                "  [yellow]No provider configured.[/yellow]  Run [bold]dp setup[/bold] first."
+            )
+            return False
+        pick = _pick_model("Select model:", _PROVIDERS[provider_name]["models"])
+        if pick:
+            cfg.setdefault("defaults", {})["model"] = pick
+            save(cfg)
+            console.print(f"  [green]✓[/green]  Model → {pick}")
+            return True
     else:
         import getpass
 
         provider_name = questionary.select(
-            "Provider:", choices=list(_PROVIDERS.keys()), style=q_style
+            "Provider:", choices=list(_PROVIDERS.keys()), style=Q_STYLE
         ).ask()
         if not provider_name:
             return False
         p = _PROVIDERS[provider_name]
-        api_key = getpass.getpass("\n  API key: ").strip()
+        existing_key = cfg.get("keys", {}).get(p["key_field"])
+        if existing_key:
+            reuse = questionary.confirm(
+                f"  Use stored {provider_name} key?", default=True, style=Q_STYLE
+            ).ask()
+            api_key = (
+                existing_key if reuse else getpass.getpass("\n  New API key: ").strip()
+            )
+        else:
+            api_key = getpass.getpass("\n  API key: ").strip()
         if not api_key:
             return False
-        model_list = p["models"]
-        opts = model_list + [_CUSTOM]
-        pick = questionary.select("Select model:", choices=opts, style=q_style).ask()
-        if not pick or pick == _CUSTOM:
-            pick = questionary.text("Model name:", style=q_style).ask()
-        if not pick:
+        model = _pick_model("Select model:", p["models"])
+        if not model:
             return False
-        model = pick.strip()
+        review_model = (
+            _pick_model("Select review model:", p["review_models"])
+            or p["review_models"][0]
+        )
+        defaults = cfg.setdefault("defaults", {})
+        defaults["model"] = model
+        defaults["review_model"] = review_model
+        defaults["provider_key"] = p["key_field"]
         cfg.setdefault("keys", {})[p["key_field"]] = api_key
-        cfg.setdefault("defaults", {})["model"] = model
         save(cfg)
         console.print(
             f"  [green]✓[/green]  Provider → {provider_name}  Model → {model}"
@@ -218,34 +252,41 @@ def _interactive_model_switch() -> bool:
     return False
 
 
-def _run(graph, state: dict, show_tokens: bool) -> None:
+_MAX_RATE_LIMIT_RETRIES = 3
+
+
+def _run(graph, state: dict) -> None:
     from docspatch.utils.errors import RateLimitError
 
-    try:
-        final = graph.invoke(state)
-        if state.get("dry_run"):
-            estimate = final.get("token_estimate", 0)
-            cost = (estimate / 1_000_000) * 1.00
-            console.print(
-                f"\n  [dim]Dry run — estimated tokens: {estimate:,}  (~${cost:.3f})[/dim]"
-            )
-        else:
-            tokens = final.get("token_actual", 0)
-            if tokens:
-                console.print(f"\n  [dim]Tokens used: {tokens:,}[/dim]")
-    except RateLimitError:
-        switched = _interactive_model_switch()
-        if switched:
-            console.print("\n  [dim]Re-running with new model…[/dim]\n")
-            _run(graph, state, show_tokens)
-        else:
+    for attempt in range(_MAX_RATE_LIMIT_RETRIES):
+        try:
+            final = graph.invoke(state)
+            if state.get("dry_run"):
+                estimate = final.get("token_estimate", 0)
+                cost = (estimate / 1_000_000) * 1.00
+                console.print(
+                    f"\n  [dim]Dry run — estimated tokens: {estimate:,}  (~${cost:.3f})[/dim]"
+                )
+            else:
+                tokens = final.get("token_actual", 0)
+                if tokens:
+                    console.print(f"\n  [dim]Tokens used: {tokens:,}[/dim]")
+            return
+        except RateLimitError:
+            switched = _interactive_model_switch()
+            if not switched:
+                raise typer.Exit(code=1)
+            if attempt < _MAX_RATE_LIMIT_RETRIES - 1:
+                console.print("\n  [dim]Re-running with new model…[/dim]\n")
+            else:
+                console.print("\n  [red]Rate limit. Max retries reached.[/red]")
+                raise typer.Exit(code=1)
+        except RuntimeError as e:
+            console.print(f"\n  [red]Error:[/red] {e}")
             raise typer.Exit(code=1)
-    except RuntimeError as e:
-        console.print(f"\n  [red]Error:[/red] {e}")
-        raise typer.Exit(code=1)
-    except KeyboardInterrupt:
-        console.print("\n  [yellow]Interrupted.[/yellow]")
-        raise typer.Exit(code=130)
+        except KeyboardInterrupt:
+            console.print("\n  [yellow]Interrupted.[/yellow]")
+            raise typer.Exit(code=130)
 
 
 def _require_git() -> None:
@@ -276,29 +317,12 @@ def _require_api_key() -> None:
 def setup() -> None:
     """Interactive first-time setup — choose provider, enter API key, set style."""
     import getpass
-    import questionary
-    from questionary import Style as QStyle
     from docspatch.utils.config import CONFIG_PATH, load, save
-
-    _print_banner(full=True)
-
-    q_style = QStyle(
-        [
-            ("qmark", "fg:#00d7ff bold"),
-            ("question", "bold"),
-            ("answer", "fg:#00d7ff bold"),
-            ("pointer", "fg:#00d7ff bold"),
-            ("highlighted", "fg:#00d7ff bold"),
-            ("selected", "fg:#00d7ff"),
-            ("separator", "fg:#555555"),
-            ("instruction", "fg:#555555 italic"),
-        ]
-    )
 
     provider_name = questionary.select(
         "Provider:",
         choices=list(_PROVIDERS.keys()),
-        style=q_style,
+        style=Q_STYLE,
     ).ask()
 
     if not provider_name:
@@ -311,17 +335,11 @@ def setup() -> None:
         console.print("  [red]No key entered. Exiting.[/red]")
         raise typer.Exit(code=1)
 
-    def _pick_model(label: str, choices: list[str]) -> str:
-        opts = choices + [_CUSTOM]
-        pick = questionary.select(label, choices=opts, style=q_style).ask()
-        if not pick or pick == _CUSTOM:
-            custom = questionary.text("  Model name:").ask()
-            return custom.strip() if custom else choices[0]
-        return pick
-
     console.print()
-    model = _pick_model("Model for docs:", p["models"])
-    review_model = _pick_model("Model for review:", p["review_models"])
+    model = _pick_model("Model for docs:", p["models"]) or p["models"][0]
+    review_model = (
+        _pick_model("Model for review:", p["review_models"]) or p["review_models"][0]
+    )
 
     style_pick = questionary.select(
         "Default style:",
@@ -329,7 +347,7 @@ def setup() -> None:
             "compact  — one-sentence summary",
             "detailed — full Args/Returns/Raises",
         ],
-        style=q_style,
+        style=Q_STYLE,
     ).ask()
     style = (
         "detailed" if style_pick and style_pick.startswith("detailed") else "compact"
@@ -337,7 +355,12 @@ def setup() -> None:
 
     config = load()
     config.setdefault("defaults", {}).update(
-        {"style": style, "model": model, "review_model": review_model}
+        {
+            "style": style,
+            "model": model,
+            "review_model": review_model,
+            "provider_key": p["key_field"],
+        }
     )
     config.setdefault("keys", {})[p["key_field"]] = api_key
     save(config)
@@ -354,7 +377,15 @@ def config(
     ),
     value: Optional[str] = typer.Argument(None, help="Value to set"),
 ) -> None:
-    """Show or update config.  Examples: dp config show  /  dp config set style detailed"""
+    """Show or update config.
+
+    Examples:
+      dp config show
+      dp config set style detailed
+      dp config set model           (interactive select)
+      dp config set review_model    (interactive select)
+      dp config set provider        (switch provider + reuse or update key)
+    """
     from docspatch.utils.config import load, save
 
     cfg = load()
@@ -373,40 +404,39 @@ def config(
         console.print("  Usage: dp config set <key> <value>  |  dp config set provider")
         raise typer.Exit(code=1)
 
-    # Provider switch: full wizard (select provider → enter key → select model)
+    # Provider switch: full wizard (select provider → enter/reuse key → select models)
     if key == "provider":
         import getpass
-        import questionary
-        from questionary import Style as QStyle
 
-        q_style = QStyle(
-            [
-                ("qmark", "fg:#00d7ff bold"),
-                ("question", "bold"),
-                ("answer", "fg:#00d7ff bold"),
-                ("pointer", "fg:#00d7ff bold"),
-                ("highlighted", "fg:#00d7ff bold"),
-                ("selected", "fg:#00d7ff"),
-                ("instruction", "fg:#555555 italic"),
-            ]
-        )
         provider_name = questionary.select(
-            "Provider:", choices=list(_PROVIDERS.keys()), style=q_style
+            "Provider:", choices=list(_PROVIDERS.keys()), style=Q_STYLE
         ).ask()
         if not provider_name:
             raise typer.Exit()
         p = _PROVIDERS[provider_name]
-        api_key = getpass.getpass("\n  API key: ").strip()
+        existing_key = cfg.get("keys", {}).get(p["key_field"])
+        if existing_key:
+            reuse = questionary.confirm(
+                f"  Use stored {provider_name} key?", default=True, style=Q_STYLE
+            ).ask()
+            api_key = (
+                existing_key if reuse else getpass.getpass("\n  New API key: ").strip()
+            )
+        else:
+            api_key = getpass.getpass("\n  API key: ").strip()
         if not api_key:
             console.print("  [red]No key entered.[/red]")
             raise typer.Exit(code=1)
-        opts = p["models"] + [_CUSTOM]
-        pick = questionary.select("Model for docs:", choices=opts, style=q_style).ask()
-        if not pick or pick == _CUSTOM:
-            pick = questionary.text("  Model name:", style=q_style).ask()
-        model = pick.strip() if pick else p["models"][0]
+        model = _pick_model("Model for docs:", p["models"]) or p["models"][0]
+        review_model = (
+            _pick_model("Model for review:", p["review_models"])
+            or p["review_models"][0]
+        )
         cfg.setdefault("keys", {})[p["key_field"]] = api_key
-        cfg.setdefault("defaults", {})["model"] = model
+        defaults = cfg.setdefault("defaults", {})
+        defaults["model"] = model
+        defaults["review_model"] = review_model
+        defaults["provider_key"] = p["key_field"]
         save(cfg)
         console.print(
             f"\n  [green]✓[/green]  Provider → {provider_name}  Model → {model}\n"
@@ -415,38 +445,15 @@ def config(
 
     # Interactive model selection when value not provided
     if key in ("model", "review_model") and value is None:
-        import questionary
-        from questionary import Style as QStyle
-
-        q_style = QStyle(
-            [
-                ("qmark", "fg:#00d7ff bold"),
-                ("question", "bold"),
-                ("answer", "fg:#00d7ff bold"),
-                ("pointer", "fg:#00d7ff bold"),
-                ("highlighted", "fg:#00d7ff bold"),
-                ("selected", "fg:#00d7ff"),
-                ("instruction", "fg:#555555 italic"),
-            ]
-        )
-        keys_cfg = cfg.get("keys", {})
-        provider_name = next(
-            (pname for pname, p in _PROVIDERS.items() if keys_cfg.get(p["key_field"])),
-            None,
-        )
-        if provider_name:
-            p = _PROVIDERS[provider_name]
-            model_list = p["models"] if key == "model" else p["review_models"]
-            opts = model_list + [_CUSTOM]
-            pick = questionary.select(
-                f"Select {key}:", choices=opts, style=q_style
-            ).ask()
-            if not pick or pick == _CUSTOM:
-                pick = questionary.text("  Model name:", style=q_style).ask()
-            value = pick.strip() if pick else None
-        else:
-            value = questionary.text(f"  {key}:").ask()
-            value = value.strip() if value else None
+        provider_name = _current_provider_name(cfg)
+        if not provider_name:
+            console.print(
+                "  [yellow]No provider configured.[/yellow]  Run [bold]dp setup[/bold] first."
+            )
+            raise typer.Exit(code=1)
+        p = _PROVIDERS[provider_name]
+        model_list = p["models"] if key == "model" else p["review_models"]
+        value = _pick_model(f"Select {key}:", model_list)
 
         if not value:
             console.print("  [dim]Cancelled.[/dim]")
@@ -468,9 +475,8 @@ def config(
 
 @app.command()
 def init(
-    style: Style = typer.Option(Style.compact, "--style", help="Output style"),
+    style: Optional[Style] = typer.Option(None, "--style", help="Output style"),
     dry_run: bool = _dry_run,
-    tokens: bool = _tokens,
 ) -> None:
     """Cold start — scan repo, prioritize files by coverage."""
     _print_banner()
@@ -480,17 +486,16 @@ def init(
     from docspatch.graph.graphs.init_graph import build
 
     state = _base_state(
-        "init", style=style.value, dry_run=dry_run, show_tokens=tokens, is_init=True
+        "init", style=style.value if style else None, dry_run=dry_run, is_init=True
     )
-    _run(build(), state, tokens)
+    _run(build(), state)
 
 
 @app.command()
 def docs(
     path: Optional[str] = typer.Argument(None, help="File or directory to document"),
-    style: Style = typer.Option(Style.compact, "--style", help="Output style"),
+    style: Optional[Style] = typer.Option(None, "--style", help="Output style"),
     dry_run: bool = _dry_run,
-    tokens: bool = _tokens,
     batch: bool = _batch,
 ) -> None:
     """Generate or update in-file docstrings for changed functions."""
@@ -503,20 +508,18 @@ def docs(
     state = _base_state(
         "docs",
         target_path=path or "",
-        style=style.value,
+        style=style.value if style else None,
         dry_run=dry_run,
-        show_tokens=tokens,
         force_batch=batch,
     )
-    _run(build(), state, tokens)
+    _run(build(), state)
 
 
 @app.command()
 def readme(
     path: Optional[str] = typer.Argument(None, help="Output path for README"),
-    style: Style = typer.Option(Style.compact, "--style", help="Output style"),
+    style: Optional[Style] = typer.Option(None, "--style", help="Output style"),
     dry_run: bool = _dry_run,
-    tokens: bool = _tokens,
 ) -> None:
     """Generate or update README.md."""
     _print_banner()
@@ -528,18 +531,16 @@ def readme(
     state = _base_state(
         "readme",
         target_path=path or "README.md",
-        style=style.value,
+        style=style.value if style else None,
         dry_run=dry_run,
-        show_tokens=tokens,
     )
-    _run(build(), state, tokens)
+    _run(build(), state)
 
 
 @app.command()
 def clg(
-    style: Style = typer.Option(Style.compact, "--style", help="Output style"),
+    style: Optional[Style] = typer.Option(None, "--style", help="Output style"),
     dry_run: bool = _dry_run,
-    tokens: bool = _tokens,
     batch: bool = _batch,
     from_ref: Optional[str] = typer.Option(
         None, "--from", help="Start commit or tag (e.g. v1.0.0)"
@@ -563,22 +564,20 @@ def clg(
 
     state = _base_state(
         "clg",
-        style=style.value,
+        style=style.value if style else None,
         dry_run=dry_run,
-        show_tokens=tokens,
         force_batch=batch,
         from_ref=from_ref or "",
         to_ref=to_ref or "",
     )
-    _run(build(), state, tokens)
+    _run(build(), state)
 
 
 @app.command()
 def review(
     path: Optional[str] = typer.Argument(None, help="File or directory to review"),
-    style: Style = typer.Option(Style.compact, "--style", help="Output style"),
+    style: Optional[Style] = typer.Option(None, "--style", help="Output style"),
     dry_run: bool = _dry_run,
-    tokens: bool = _tokens,
 ) -> None:
     """Code quality feedback."""
     _print_banner()
@@ -590,11 +589,10 @@ def review(
     state = _base_state(
         "review",
         target_path=path or "",
-        style=style.value,
+        style=style.value if style else None,
         dry_run=dry_run,
-        show_tokens=tokens,
     )
-    _run(build(), state, tokens)
+    _run(build(), state)
 
 
 @app.command()

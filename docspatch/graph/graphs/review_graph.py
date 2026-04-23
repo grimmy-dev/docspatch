@@ -8,10 +8,12 @@ from docspatch.graph.state import DocpatchState
 
 
 def _has_changed_files(state: DocpatchState) -> str:
+    """Return 'continue' if state has changed files, otherwise 'exit'."""
     return "continue" if state["changed_files"] else "exit"
 
 
 def build() -> object:
+    """Build and return the state graph for docpatch."""
     g = StateGraph(DocpatchState)
 
     g.add_node("scanner", scanner)

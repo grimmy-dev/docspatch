@@ -14,6 +14,9 @@ from docspatch.utils.ui import info
 
 
 def _has_significant(state: DocpatchState) -> str:
+    """
+    Return 'exit' if no meaningful changes were found, otherwise 'continue'.
+    """
     if not state["parsed_functions"]:
         info("No meaningful changes — only whitespace or comments.")
         return "exit"
@@ -21,6 +24,7 @@ def _has_significant(state: DocpatchState) -> str:
 
 
 def _has_changed_files(state: DocpatchState) -> str:
+    """Return 'exit' if no files have changed, otherwise 'continue'."""
     if not state["changed_files"]:
         info("Nothing changed since last run.")
         return "exit"
@@ -28,6 +32,7 @@ def _has_changed_files(state: DocpatchState) -> str:
 
 
 def build() -> object:
+    """Build the state graph for the docpatcher."""
     g = StateGraph(DocpatchState)
 
     g.add_node("scanner", scanner)

@@ -10,3 +10,5 @@ wheels/
 .venv
 context.md
 tasks.md
+.ruff_cache
+.claude

@@ -11,7 +11,9 @@ def normalize(source: str) -> str:
 
 
 def is_significant(old_body: str, new_body: str) -> bool:
-    """Return True if the change is meaningful (not just whitespace/comments)."""
+    """
+    Return True if the change is meaningful (not just whitespace/comments).
+    """
     return normalize(old_body) != normalize(new_body)
 
 

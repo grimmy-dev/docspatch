@@ -72,7 +72,7 @@ def _parse_response(text: str, batch: list[dict]) -> list[dict]:
     try:
         items: list[dict] = json.loads(text)
         by_name = {item["name"]: item["docstring"] for item in items}
-    except (json.JSONDecodeError, KeyError, TypeError):
+    except json.JSONDecodeError, KeyError, TypeError:
         return []
 
     return [

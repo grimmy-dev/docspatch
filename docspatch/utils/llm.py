@@ -1,4 +1,5 @@
 import os
+from typing import Callable
 
 from langchain_core.language_models import BaseChatModel
 
@@ -6,6 +7,7 @@ from docspatch.utils.config import load
 
 
 def extract_text(content: str | list) -> str:
+    """Extract text content from a string or a list of blocks."""
     if isinstance(content, str):
         return content
     return " ".join(
@@ -15,6 +17,7 @@ def extract_text(content: str | list) -> str:
 
 
 def extract_tokens(response) -> int:
+    """Extract the total number of tokens from a response object."""
     meta = getattr(response, "usage_metadata", None)
     if not meta:
         return 0
@@ -23,29 +26,55 @@ def extract_tokens(response) -> int:
     )
 
 
+def _make_google(model: str, api_key: str) -> BaseChatModel:
+    """Create and return a ChatGoogleGenerativeAI model instance."""
+    os.environ["GOOGLE_API_KEY"] = api_key
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    return ChatGoogleGenerativeAI(model=model)
+
+
+def _make_openai(model: str, api_key: str) -> BaseChatModel:
+    """Create and return a ChatOpenAI model instance."""
+    os.environ["OPENAI_API_KEY"] = api_key
+    from langchain_openai import ChatOpenAI
+
+    return ChatOpenAI(model=model)
+
+
+def _make_anthropic(model: str, api_key: str) -> BaseChatModel:
+    """Create and return a ChatAnthropic model instance."""
+    os.environ["ANTHROPIC_API_KEY"] = api_key
+    from langchain_anthropic import ChatAnthropic
+
+    return ChatAnthropic(model=model)  # type: ignore[call-arg]
+
+
+_PROVIDER_FACTORIES: dict[str, Callable[[str, str], BaseChatModel]] = {
+    "google_api_key": _make_google,
+    "openai_api_key": _make_openai,
+    "anthropic_api_key": _make_anthropic,
+}
+
+
 def get_llm(model_key: str = "model") -> BaseChatModel:
-    """Return configured LangChain chat model. Tries Google → OpenAI → Anthropic."""
+    """Return configured LangChain chat model."""
     config = load()
-    model_name: str = config.get("defaults", {}).get(model_key, "gemini-2.0-flash")
+    defaults: dict = config.get("defaults", {})
+    model_name: str = defaults.get(model_key, "gemini-2.5-flash")
     keys: dict = config.get("keys", {})
 
-    if google_key := keys.get("google_api_key"):
-        os.environ["GOOGLE_API_KEY"] = google_key
-        from langchain_google_genai import ChatGoogleGenerativeAI
+    # Honor explicit provider selection (written by setup / config set provider)
+    stored_key: str | None = defaults.get("provider_key")
+    if stored_key and (api_key := keys.get(stored_key)):
+        factory = _PROVIDER_FACTORIES.get(stored_key)
+        if factory:
+            return factory(model_name, api_key)
 
-        return ChatGoogleGenerativeAI(model=model_name)
-
-    if openai_key := keys.get("openai_api_key"):
-        os.environ["OPENAI_API_KEY"] = openai_key
-        from langchain_openai import ChatOpenAI
-
-        return ChatOpenAI(model=model_name)
-
-    if anthropic_key := keys.get("anthropic_api_key"):
-        os.environ["ANTHROPIC_API_KEY"] = anthropic_key
-        from langchain_anthropic import ChatAnthropic
-
-        return ChatAnthropic(model=model_name)  # type: ignore[call-arg]
+    # Backward-compat fallback: first configured key wins
+    for key_field, factory in _PROVIDER_FACTORIES.items():
+        if api_key := keys.get(key_field):
+            return factory(model_name, api_key)
 
     raise RuntimeError(
         "No API key configured.\n"

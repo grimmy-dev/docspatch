@@ -7,6 +7,7 @@ from docspatch.graph.state import DocpatchState
 
 
 def build() -> object:
+    """Builds and compiles a StateGraph for document processing."""
     g = StateGraph(DocpatchState)
 
     g.add_node("clg_writer", clg_writer)

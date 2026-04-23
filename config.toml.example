@@ -1,12 +1,20 @@
 # docspatch config — copy to ~/.docspatch/config.toml
+# Run `dp setup` to generate this automatically.
 
 [defaults]
-style = "compact"               # compact | detailed
-model = "gemini-2.0-flash"      # cheap model for docstring generation
-review_model = "gemini-2.5-pro" # stronger model for code review
+style        = "compact"           # compact | detailed
+model        = "gemini-2.5-flash"  # model used for docstrings, README, changelog
+review_model = "gemini-2.5-pro"    # model used for `dp review`
+provider_key = "google_api_key"    # which key below is active
+
+# Change model interactively:  dp config set model
+# Change review model:         dp config set review_model
+# Switch provider:             dp config set provider
 
 [keys]
-# Provide one key — docspatch uses whichever is present
-# openai_api_key = "sk-..."
+# Store keys for multiple providers — provider_key above selects the active one.
+# Switching provider (dp config set provider) never deletes stored keys.
+
+google_api_key     = "AIza..."
+# openai_api_key   = "sk-..."
 # anthropic_api_key = "sk-ant-..."
-# google_api_key = "AIza..."

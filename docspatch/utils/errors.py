@@ -3,6 +3,9 @@ class RateLimitError(RuntimeError):
 
 
 def classify_llm_error(e: Exception) -> RuntimeError:
+    """
+    Classify an LLM exception into a more specific RuntimeError or RateLimitError based on its message.
+    """
     msg = str(e).lower()
 
     if any(

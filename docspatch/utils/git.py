@@ -4,6 +4,9 @@ from git import InvalidGitRepositoryError, Repo
 
 
 def get_repo(path: str | None = None) -> Repo:
+    """
+    Find and return the git repository at the given path or its parent directories.
+    """
     search_path: Path = Path(path) if path else Path.cwd()
     try:
         return Repo(search_path, search_parent_directories=True)
@@ -14,6 +17,9 @@ def get_repo(path: str | None = None) -> Repo:
 
 
 def is_git_repo(path: str | None = None) -> bool:
+    """
+    Check if the given path or its parent directories contain a git repository.
+    """
     try:
         get_repo(path)
         return True
@@ -22,6 +28,7 @@ def is_git_repo(path: str | None = None) -> bool:
 
 
 def get_root(repo: Repo | None = None) -> Path:
+    """Return the root directory of the git repository."""
     r = repo or get_repo()
     if r.working_tree_dir is None:
         raise RuntimeError("Bare repositories are not supported.")
@@ -29,6 +36,9 @@ def get_root(repo: Repo | None = None) -> Path:
 
 
 def get_current_branch(repo: Repo | None = None) -> str:
+    """
+    Return the name of the current git branch or the short hash of the HEAD commit if detached.
+    """
     r = repo or get_repo()
     try:
         return r.active_branch.name
