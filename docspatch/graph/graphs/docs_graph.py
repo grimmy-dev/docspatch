@@ -1,38 +1,28 @@
 from langgraph.graph import END, StateGraph
-from rich.console import Console
 
 from docspatch.graph.nodes.ast_parser import ast_parser
-
 from docspatch.graph.nodes.batcher import batcher
 from docspatch.graph.nodes.docwriter import docwriter
 from docspatch.graph.nodes.hash_check import file_hash_check, function_hash_check
-from docspatch.graph.nodes.preview import (
-    collect_feedback,
-    has_skipped,
-    preview_all,
-    prompt_rerun,
-)
+from docspatch.graph.nodes.preview import has_rerun, preview_all
 from docspatch.graph.nodes.scanner import scanner
 from docspatch.graph.nodes.significance import significance
 from docspatch.graph.nodes.size_check import size_check
 from docspatch.graph.nodes.writer import cache_update, writer
 from docspatch.graph.state import DocpatchState
-
-console = Console()
+from docspatch.utils.ui import info
 
 
 def _has_significant(state: DocpatchState) -> str:
     if not state["parsed_functions"]:
-        console.print(
-            "  [dim]No meaningful changes — only whitespace or comments.[/dim]"
-        )
+        info("No meaningful changes — only whitespace or comments.")
         return "exit"
     return "continue"
 
 
 def _has_changed_files(state: DocpatchState) -> str:
     if not state["changed_files"]:
-        console.print("  [dim]Nothing changed since last run.[/dim]")
+        info("Nothing changed since last run.")
         return "exit"
     return "continue"
 
@@ -51,8 +41,6 @@ def build() -> object:
     g.add_node("preview_all", preview_all)
     g.add_node("writer", writer)
     g.add_node("cache_update", cache_update)
-    g.add_node("prompt_rerun", prompt_rerun)
-    g.add_node("collect_feedback", collect_feedback)
 
     g.set_entry_point("scanner")
     g.add_edge("scanner", "file_hash_check")
@@ -69,10 +57,8 @@ def build() -> object:
     g.add_edge("docwriter", "preview_all")
     g.add_edge("preview_all", "writer")
     g.add_edge("writer", "cache_update")
-    g.add_edge("cache_update", "prompt_rerun")
     g.add_conditional_edges(
-        "prompt_rerun", has_skipped, {"rerun": "collect_feedback", "done": END}
+        "cache_update", has_rerun, {"rerun": "docwriter", "done": END}
     )
-    g.add_edge("collect_feedback", "docwriter")
 
     return g.compile()

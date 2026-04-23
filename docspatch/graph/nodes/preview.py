@@ -1,95 +1,130 @@
+import questionary
+from questionary import Style as QStyle
 from rich.console import Console
 from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 
 from docspatch.graph.state import DocpatchState
 
 console = Console()
 
+_Q_STYLE = QStyle(
+    [
+        ("qmark", "fg:#00d7ff bold"),
+        ("question", "bold"),
+        ("answer", "fg:#00d7ff bold"),
+        ("pointer", "fg:#00d7ff bold"),
+        ("highlighted", "fg:#00d7ff bold"),
+        ("selected", "fg:#00d7ff"),
+        ("instruction", "fg:#555555 italic"),
+    ]
+)
 
-def _show_doc_panel(doc: dict, index: int, total: int) -> None:
+
+def _display_doc(doc: dict, index: int, total: int) -> None:
     fn_name = doc["name"]
+    fn_file = doc.get("file", "")
     docstring = doc.get("generated_doc", "")
-    title = f"[bold]{index}/{total}[/bold]  {fn_name}()"
-    console.print(Panel(docstring, title=title, border_style="blue"))
+
+    title = Text()
+    title.append(f"{index}/{total}  ", style="dim")
+    title.append(f"{fn_name}()", style="bold cyan")
+
+    subtitle = Text(fn_file, style="dim")
+    body = Text(docstring.strip())
+
+    console.print()
+    console.print(
+        Panel(body, title=title, subtitle=subtitle, border_style="cyan", padding=(0, 1))
+    )
 
 
-def _prompt_choice(prompt: str, valid: set[str]) -> str:
-    while True:
-        choice = input(f"\n  {prompt}: ").strip().lower()
-        if choice in valid:
-            return choice
-        console.print(f"  [red]Enter one of: {', '.join(sorted(valid))}[/red]")
+def _display_bulk_summary(docs: list[dict]) -> None:
+    table = Table(show_header=True, header_style="bold dim", box=None, padding=(0, 2))
+    table.add_column("Function", style="cyan", no_wrap=True)
+    table.add_column("Preview", style="dim")
+    for doc in docs:
+        first_line = doc.get("generated_doc", "").strip().split("\n")[0][:80]
+        table.add_row(f"{doc['name']}()", first_line)
+    console.print()
+    console.print(table)
+    console.print()
 
 
 def preview_all(state: DocpatchState) -> dict:
-    """Show all generated docs. Bulk accept, individual review, or quit."""
     docs = state["generated_docs"]
     total = len(docs)
 
     if not docs:
-        return {"accepted_docs": [], "skipped_docs": []}
+        return {"accepted_docs": [], "skipped_docs": [], "rerun_docs": []}
 
-    console.print()
-    for i, doc in enumerate(docs, 1):
-        _show_doc_panel(doc, i, total)
-
-    choice = _prompt_choice(
-        "Accept all? [y] review individually [r] quit [q]", {"y", "r", "q"}
-    )
-
-    if choice == "q":
-        raise SystemExit(0)
-
-    if choice == "y":
-        return {"accepted_docs": docs, "skipped_docs": []}
-
-    # individual review
-    accepted, skipped = [], []
-    for i, doc in enumerate(docs, 1):
-        console.print()
-        _show_doc_panel(doc, i, total)
-        action = _prompt_choice("[a]ccept  [s]kip", {"a", "s"})
-        (accepted if action == "a" else skipped).append(doc)
-
-    return {"accepted_docs": accepted, "skipped_docs": skipped}
-
-
-def collect_feedback(state: DocpatchState) -> dict:
-    """For each skipped doc ask what's wrong. Populate rerun_docs."""
+    accepted: list[dict] = []
     rerun: list[dict] = []
 
-    console.print()
-    for doc in state["skipped_docs"]:
-        fn_name = doc["name"]
-        existing = doc.get("generated_doc", "")
-        console.print(
-            Panel(
-                f'[dim]Current:[/dim] "{existing}"',
-                title=f"{fn_name}()",
-                border_style="yellow",
-            )
-        )
-        feedback = input("  What's wrong?: ").strip()
-        if feedback:
-            rerun.append({**doc, "feedback": feedback})
+    console.print(f"\n  [bold]{total} doc(s) ready for review[/bold]")
 
-    return {"rerun_docs": rerun, "feedback": {d["name"]: d["feedback"] for d in rerun}}
+    # Bulk accept shortcut
+    bulk = questionary.select(
+        "Review mode:",
+        choices=["Accept all", "Review individually"],
+        style=_Q_STYLE,
+    ).ask()
+
+    if not bulk or bulk == "Accept all":
+        _display_bulk_summary(docs)
+        return {"accepted_docs": docs, "skipped_docs": [], "rerun_docs": []}
+
+    # Individual review
+    for i, doc in enumerate(docs, 1):
+        _display_doc(doc, i, total)
+
+        action = questionary.select(
+            "Action:",
+            choices=[
+                "Accept",
+                "Edit manually  — write it yourself, no LLM",
+                "Regenerate    — tell the LLM what to fix",
+                "Discard       — skip, do not write",
+            ],
+            style=_Q_STYLE,
+        ).ask()
+
+        if action and action.startswith("Accept"):
+            accepted.append(doc)
+        elif action and action.startswith("Edit manually"):
+            edited = questionary.text(
+                "Docstring:",
+                default=doc.get("generated_doc", ""),
+                style=_Q_STYLE,
+            ).ask()
+            accepted.append({**doc, "generated_doc": edited.strip() if edited and edited.strip() else doc.get("generated_doc", "")})
+        elif action and action.startswith("Regenerate"):
+            feedback = questionary.text(
+                "What's missing or wrong?",
+                style=_Q_STYLE,
+            ).ask()
+            rerun.append({**doc, "feedback": feedback.strip() if feedback and feedback.strip() else "improve this docstring"})
+        # Discard: drop silently
+
+    n_accepted = len(accepted)
+    n_rerun = len(rerun)
+    parts = []
+    if n_accepted:
+        parts.append(f"[green]{n_accepted} accepted[/green]")
+    if n_rerun:
+        parts.append(f"[yellow]{n_rerun} queued for rerun[/yellow]")
+    if not parts:
+        parts.append("[dim]all skipped[/dim]")
+    console.print("  " + "  ".join(parts) + "\n")
+
+    return {
+        "accepted_docs": accepted,
+        "skipped_docs": [],
+        "rerun_docs": rerun,
+        "feedback": {d["name"]: d["feedback"] for d in rerun},
+    }
 
 
-# --- routing ---
-
-
-def has_skipped(state: DocpatchState) -> str:
-    return "rerun" if state.get("skipped_docs") else "done"
-
-
-def prompt_rerun(state: DocpatchState) -> dict:
-    """Ask user if they want to rerun skipped docs with feedback."""
-    if state.get("dry_run") or not state.get("skipped_docs"):
-        return {}
-    n = len(state["skipped_docs"])
-    console.print()
-    choice = _prompt_choice(f"{n} skipped. Rerun with feedback? [y/n]", {"y", "n"})
-    if choice == "n":
-        return {"skipped_docs": []}
-    return {}
+def has_rerun(state: DocpatchState) -> str:
+    return "rerun" if state.get("rerun_docs") else "done"

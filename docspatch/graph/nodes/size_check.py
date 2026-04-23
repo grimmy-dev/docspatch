@@ -1,3 +1,5 @@
+import questionary
+from questionary import Style as QStyle
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
@@ -6,12 +8,24 @@ from docspatch.graph.state import DocpatchState
 
 console = Console()
 
-LARGE_THRESHOLD = 50  # functions
-TOKENS_PER_FN = 300  # rough estimate: ~200 input + ~100 output
+LARGE_THRESHOLD = 50
+TOKENS_PER_FN = 300
+
+_Q_STYLE = QStyle(
+    [
+        ("qmark", "fg:#00d7ff bold"),
+        ("question", "bold"),
+        ("answer", "fg:#00d7ff bold"),
+        ("pointer", "fg:#00d7ff bold"),
+        ("highlighted", "fg:#00d7ff bold"),
+        ("selected", "fg:#00d7ff"),
+        ("instruction", "fg:#555555 italic"),
+    ]
+)
 
 
 def _prompt_strategy(n_functions: int, n_files: int, token_estimate: int) -> str:
-    cost_estimate = (token_estimate / 1_000_000) * 1.00  # ~$1/1M blended
+    cost_estimate = (token_estimate / 1_000_000) * 1.00
 
     warning = Text.assemble(
         ("⚠  Large repo detected", "bold yellow"),
@@ -23,37 +37,40 @@ def _prompt_strategy(n_functions: int, n_files: int, token_estimate: int) -> str
         (")", "dim"),
     )
     console.print(Panel(warning, border_style="yellow"))
-    console.print(
-        "  [bold][a][/bold] auto-batch  — process in chunks\n"
-        "  [bold][p][/bold] pick files  — choose which files now\n"
-        "  [bold][s][/bold] smart       — only undocumented functions\n"
-        "  [bold][q][/bold] quit"
-    )
 
-    while True:
-        choice = input("\n  Choice: ").strip().lower()
-        if choice in ("a", "p", "s", "q"):
-            return choice
-        console.print("  [red]Invalid choice.[/red] Enter a, p, s, or q.")
+    choice = questionary.select(
+        "How to proceed:",
+        choices=[
+            "Auto-batch — process all in chunks",
+            "Pick files — choose which files",
+            "Smart — only undocumented functions",
+            "Quit",
+        ],
+        style=_Q_STYLE,
+    ).ask()
+
+    if not choice or choice.startswith("Quit"):
+        return "q"
+    if choice.startswith("Pick"):
+        return "p"
+    if choice.startswith("Smart"):
+        return "s"
+    return "a"
 
 
 def _pick_files(functions: list[dict]) -> list[dict]:
     files = sorted({fn["file"] for fn in functions})
-    console.print("\n  [bold]Select files to process:[/bold]")
-    for i, path in enumerate(files, 1):
-        console.print(f"  [{i}] {path}")
-
-    raw = input("\n  Enter numbers (comma-separated): ").strip()
-    try:
-        indices = {int(x.strip()) - 1 for x in raw.split(",") if x.strip()}
-        chosen = {files[i] for i in indices if 0 <= i < len(files)}
-    except ValueError:
-        chosen = set()
+    chosen = questionary.checkbox(
+        "Select files to process:",
+        choices=files,
+        style=_Q_STYLE,
+    ).ask()
 
     if not chosen:
-        console.print("  [yellow]No valid selection — processing all.[/yellow]")
+        console.print("  [yellow]No selection — processing all.[/yellow]")
         return functions
-    return [fn for fn in functions if fn["file"] in chosen]
+    chosen_set = set(chosen)
+    return [fn for fn in functions if fn["file"] in chosen_set]
 
 
 def size_check(state: DocpatchState) -> dict:
