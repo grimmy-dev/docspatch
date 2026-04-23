@@ -3,18 +3,18 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from docspatch.graph.state import DocpatchState
 from docspatch.utils.errors import classify_llm_error
 from docspatch.utils.git import get_diff, get_log, get_repo
-from docspatch.utils.llm import get_llm
+from docspatch.utils.llm import extract_text, extract_tokens, get_llm
 from docspatch.utils.ui import spinning
 
 _SYSTEM = (
-    "You are a technical writer generating changelogs. "
-    "Use Keep a Changelog format. Group by: Added, Changed, Fixed, Removed. "
-    "Be specific — reference function names and modules. No vague entries."
+    "Changelog writer. Keep a Changelog format. "
+    "Group by: Added, Changed, Fixed, Removed. "
+    "Reference function names and modules. No vague entries."
 )
 
 _STYLE_GUIDE = {
     "compact": "One bullet per logical change. Skip minor refactors.",
-    "detailed": "Full entries with context. Include breaking changes section if any.",
+    "detailed": "Full entries with context. Breaking changes section if any.",
 }
 
 
@@ -60,16 +60,10 @@ def clg_writer(state: DocpatchState) -> dict:
     except Exception as e:
         raise classify_llm_error(e) from e
 
-    token_actual = state.get("token_actual", 0)
-    meta = getattr(response, "usage_metadata", None)
-    if meta:
-        token_actual += meta.get("total_tokens", 0) or (
-            meta.get("input_tokens", 0) + meta.get("output_tokens", 0)
-        )
-
+    token_actual = state.get("token_actual", 0) + extract_tokens(response)
     changelog_doc = {
         "name": "CHANGELOG.md",
         "file": "CHANGELOG.md",
-        "generated_doc": response.content,
+        "generated_doc": extract_text(response.content),
     }
     return {"generated_docs": [changelog_doc], "token_actual": token_actual}

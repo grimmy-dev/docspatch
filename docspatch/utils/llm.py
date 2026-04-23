@@ -5,6 +5,24 @@ from langchain_core.language_models import BaseChatModel
 from docspatch.utils.config import load
 
 
+def extract_text(content: str | list) -> str:
+    if isinstance(content, str):
+        return content
+    return " ".join(
+        block.get("text", "") if isinstance(block, dict) else str(block)
+        for block in content
+    )
+
+
+def extract_tokens(response) -> int:
+    meta = getattr(response, "usage_metadata", None)
+    if not meta:
+        return 0
+    return meta.get("total_tokens", 0) or (
+        meta.get("input_tokens", 0) + meta.get("output_tokens", 0)
+    )
+
+
 def get_llm(model_key: str = "model") -> BaseChatModel:
     """Return configured LangChain chat model. Tries Google → OpenAI → Anthropic."""
     config = load()
