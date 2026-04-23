@@ -31,8 +31,11 @@ def _existing_doc(node: _FuncNode) -> str:
 
 
 def _parse_file(filepath: str) -> list[dict]:
-    with open(filepath, encoding="utf-8") as f:
-        source = f.read()
+    try:
+        with open(filepath, encoding="utf-8") as f:
+            source = f.read()
+    except OSError:
+        return []
 
     try:
         tree = ast.parse(source)
