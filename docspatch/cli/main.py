@@ -43,18 +43,40 @@ def _print_banner(full: bool = False) -> None:
 _PROVIDERS: dict[str, dict] = {
     "Google Gemini": {
         "key_field": "google_api_key",
-        "models": ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash"],
-        "review_models": ["gemini-2.5-pro", "gemini-2.0-pro-exp", "gemini-1.5-pro"],
+        "models": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"],
+        "review_models": [
+            "gemini-2.5-pro",
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+        ],
     },
     "OpenAI": {
         "key_field": "openai_api_key",
-        "models": ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo"],
-        "review_models": ["gpt-4o", "gpt-4-turbo", "o3-mini"],
+        "models": [
+            "gpt-5.4",
+            "gpt-5.4-mini",
+            "gpt-5.4-nano",
+            "gpt-5-mini-2025-08-07",
+            "gpt-5-nano-2025-08-07",
+            "gpt-5-2025-08-07",
+        ],
+        "review_models": [
+            "gpt-5.4",
+            "gpt-5.4-mini",
+            "gpt-5.4-nano",
+            "gpt-5-mini-2025-08-07",
+            "gpt-5-nano-2025-08-07",
+            "gpt-5-2025-08-07",
+        ],
     },
     "Anthropic": {
         "key_field": "anthropic_api_key",
         "models": ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"],
-        "review_models": ["claude-sonnet-4-6", "claude-opus-4-7"],
+        "review_models": [
+            "claude-haiku-4-5-20251001",
+            "claude-sonnet-4-6",
+            "claude-opus-4-7",
+        ],
     },
 }
 
@@ -116,7 +138,89 @@ def _base_state(
     }
 
 
+def _interactive_model_switch() -> bool:
+    """Offer model/provider switch after rate limit. Returns True if user switched."""
+    import questionary
+    from questionary import Style as QStyle
+    from docspatch.utils.config import load, save
+
+    q_style = QStyle(
+        [
+            ("qmark", "fg:#00d7ff bold"),
+            ("question", "bold"),
+            ("answer", "fg:#00d7ff bold"),
+            ("pointer", "fg:#00d7ff bold"),
+            ("highlighted", "fg:#00d7ff bold"),
+            ("selected", "fg:#00d7ff"),
+            ("instruction", "fg:#555555 italic"),
+        ]
+    )
+
+    console.print("\n  [yellow]Rate limit hit.[/yellow]  Switch model or provider?\n")
+    action = questionary.select(
+        "What to do:",
+        choices=["Switch model", "Switch provider", "Quit"],
+        style=q_style,
+    ).ask()
+
+    if not action or action == "Quit":
+        return False
+
+    cfg = load()
+
+    if action == "Switch model":
+        keys_cfg = cfg.get("keys", {})
+        provider_name = next(
+            (pname for pname, p in _PROVIDERS.items() if keys_cfg.get(p["key_field"])),
+            None,
+        )
+        if provider_name:
+            model_list = _PROVIDERS[provider_name]["models"]
+            opts = model_list + [_CUSTOM]
+            pick = questionary.select(
+                "Select model:", choices=opts, style=q_style
+            ).ask()
+            if not pick or pick == _CUSTOM:
+                pick = questionary.text("Model name:", style=q_style).ask()
+            if pick and pick.strip():
+                cfg.setdefault("defaults", {})["model"] = pick.strip()
+                save(cfg)
+                console.print(f"  [green]✓[/green]  Model → {pick.strip()}")
+                return True
+    else:
+        import getpass
+
+        provider_name = questionary.select(
+            "Provider:", choices=list(_PROVIDERS.keys()), style=q_style
+        ).ask()
+        if not provider_name:
+            return False
+        p = _PROVIDERS[provider_name]
+        api_key = getpass.getpass("\n  API key: ").strip()
+        if not api_key:
+            return False
+        model_list = p["models"]
+        opts = model_list + [_CUSTOM]
+        pick = questionary.select("Select model:", choices=opts, style=q_style).ask()
+        if not pick or pick == _CUSTOM:
+            pick = questionary.text("Model name:", style=q_style).ask()
+        if not pick:
+            return False
+        model = pick.strip()
+        cfg.setdefault("keys", {})[p["key_field"]] = api_key
+        cfg.setdefault("defaults", {})["model"] = model
+        save(cfg)
+        console.print(
+            f"  [green]✓[/green]  Provider → {provider_name}  Model → {model}"
+        )
+        return True
+
+    return False
+
+
 def _run(graph, state: dict, show_tokens: bool) -> None:
+    from docspatch.utils.errors import RateLimitError
+
     try:
         final = graph.invoke(state)
         if state.get("dry_run"):
@@ -125,9 +229,17 @@ def _run(graph, state: dict, show_tokens: bool) -> None:
             console.print(
                 f"\n  [dim]Dry run — estimated tokens: {estimate:,}  (~${cost:.3f})[/dim]"
             )
-        elif show_tokens:
+        else:
             tokens = final.get("token_actual", 0)
-            console.print(f"\n  [dim]Tokens used: {tokens:,}[/dim]")
+            if tokens:
+                console.print(f"\n  [dim]Tokens used: {tokens:,}[/dim]")
+    except RateLimitError:
+        switched = _interactive_model_switch()
+        if switched:
+            console.print("\n  [dim]Re-running with new model…[/dim]\n")
+            _run(graph, state, show_tokens)
+        else:
+            raise typer.Exit(code=1)
     except RuntimeError as e:
         console.print(f"\n  [red]Error:[/red] {e}")
         raise typer.Exit(code=1)
@@ -257,7 +369,90 @@ def config(
         console.print()
         return
 
-    if action != "set" or not key or value is None:
+    if action != "set" or not key:
+        console.print("  Usage: dp config set <key> <value>  |  dp config set provider")
+        raise typer.Exit(code=1)
+
+    # Provider switch: full wizard (select provider → enter key → select model)
+    if key == "provider":
+        import getpass
+        import questionary
+        from questionary import Style as QStyle
+
+        q_style = QStyle(
+            [
+                ("qmark", "fg:#00d7ff bold"),
+                ("question", "bold"),
+                ("answer", "fg:#00d7ff bold"),
+                ("pointer", "fg:#00d7ff bold"),
+                ("highlighted", "fg:#00d7ff bold"),
+                ("selected", "fg:#00d7ff"),
+                ("instruction", "fg:#555555 italic"),
+            ]
+        )
+        provider_name = questionary.select(
+            "Provider:", choices=list(_PROVIDERS.keys()), style=q_style
+        ).ask()
+        if not provider_name:
+            raise typer.Exit()
+        p = _PROVIDERS[provider_name]
+        api_key = getpass.getpass("\n  API key: ").strip()
+        if not api_key:
+            console.print("  [red]No key entered.[/red]")
+            raise typer.Exit(code=1)
+        opts = p["models"] + [_CUSTOM]
+        pick = questionary.select("Model for docs:", choices=opts, style=q_style).ask()
+        if not pick or pick == _CUSTOM:
+            pick = questionary.text("  Model name:", style=q_style).ask()
+        model = pick.strip() if pick else p["models"][0]
+        cfg.setdefault("keys", {})[p["key_field"]] = api_key
+        cfg.setdefault("defaults", {})["model"] = model
+        save(cfg)
+        console.print(
+            f"\n  [green]✓[/green]  Provider → {provider_name}  Model → {model}\n"
+        )
+        return
+
+    # Interactive model selection when value not provided
+    if key in ("model", "review_model") and value is None:
+        import questionary
+        from questionary import Style as QStyle
+
+        q_style = QStyle(
+            [
+                ("qmark", "fg:#00d7ff bold"),
+                ("question", "bold"),
+                ("answer", "fg:#00d7ff bold"),
+                ("pointer", "fg:#00d7ff bold"),
+                ("highlighted", "fg:#00d7ff bold"),
+                ("selected", "fg:#00d7ff"),
+                ("instruction", "fg:#555555 italic"),
+            ]
+        )
+        keys_cfg = cfg.get("keys", {})
+        provider_name = next(
+            (pname for pname, p in _PROVIDERS.items() if keys_cfg.get(p["key_field"])),
+            None,
+        )
+        if provider_name:
+            p = _PROVIDERS[provider_name]
+            model_list = p["models"] if key == "model" else p["review_models"]
+            opts = model_list + [_CUSTOM]
+            pick = questionary.select(
+                f"Select {key}:", choices=opts, style=q_style
+            ).ask()
+            if not pick or pick == _CUSTOM:
+                pick = questionary.text("  Model name:", style=q_style).ask()
+            value = pick.strip() if pick else None
+        else:
+            value = questionary.text(f"  {key}:").ask()
+            value = value.strip() if value else None
+
+        if not value:
+            console.print("  [dim]Cancelled.[/dim]")
+            raise typer.Exit()
+
+    if value is None:
         console.print("  Usage: dp config set <key> <value>")
         raise typer.Exit(code=1)
 
@@ -429,7 +624,5 @@ def cleanup(
         console.print("  [green]✓[/green]  ~/.docspatch/ removed.")
 
     console.print(
-        "\n  To uninstall the package:\n"
-        "    [bold]pip uninstall docspatch[/bold]\n"
-        "    [dim]# or: uv tool uninstall docspatch[/dim]\n"
+        "\n  To uninstall the package:\n    [bold]uv tool uninstall docspatch[/bold]\n"
     )

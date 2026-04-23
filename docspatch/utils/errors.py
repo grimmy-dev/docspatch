@@ -1,5 +1,8 @@
+class RateLimitError(RuntimeError):
+    pass
+
+
 def classify_llm_error(e: Exception) -> RuntimeError:
-    """Map provider exceptions to user-friendly messages."""
     msg = str(e).lower()
 
     if any(
@@ -10,9 +13,7 @@ def classify_llm_error(e: Exception) -> RuntimeError:
             "API key rejected. Verify your key in ~/.docspatch/config.toml"
         )
     if any(k in msg for k in ("429", "rate limit", "quota", "resource_exhausted")):
-        return RuntimeError(
-            "Rate limit hit. Wait a moment and retry, or switch to a different model."
-        )
+        return RateLimitError("Rate limit hit.")
     if any(
         k in msg
         for k in (
