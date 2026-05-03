@@ -17,7 +17,7 @@ def fan_out_batches(state: DocpatchState) -> list[Send]:
     return [
         Send(
             "docwriter_single",
-            state.model_copy(update={"current_batch": batch}).model_dump(),
+            state.model_copy(update={"current_batch": batch}),
         )
         for batch in state.batches
     ]
@@ -31,8 +31,8 @@ def add_docwrite_nodes(g: StateGraph[DocpatchState]) -> tuple[str, str]:
 
     Returns:
         tuple[str, str]: A tuple containing the entry and exit node names for the added subgraph."""
-    from src.graph.nodes.batcher import batcher
-    from src.graph.nodes.docwriter import collect_batches, docwriter_single
+    from src.graph.nodes.docstring.batcher import batcher
+    from src.graph.nodes.docstring.docwriter import collect_batches, docwriter_single
 
     g.add_node("batcher", batcher)
     g.add_node("docwriter_single", docwriter_single)
@@ -52,18 +52,18 @@ def add_write_cycle_nodes(g: StateGraph[DocpatchState]) -> tuple[str, str]:
 
     Returns:
         tuple[str, str]: A tuple containing the entry and exit node names for the added subgraph."""
-    from src.graph.nodes.docwriter import docwriter_rerun
-    from src.graph.nodes.preview import has_rerun, preview_all
-    from src.graph.nodes.writer import cache_update, writer
+    from src.graph.nodes.docstring.docwriter import docwriter_rerun
+    from src.graph.nodes.docstring.writer import cache_update, writer
+    from src.graph.nodes.preview import docs_preview_all, has_rerun
 
-    g.add_node("preview_all", preview_all)
+    g.add_node("docs_preview_all", docs_preview_all)
     g.add_node("writer", writer)
     g.add_node("cache_update", cache_update)
     g.add_node("docwriter_rerun", docwriter_rerun)
 
-    g.add_edge("preview_all", "writer")
+    g.add_edge("docs_preview_all", "writer")
     g.add_edge("writer", "cache_update")
     g.add_conditional_edges("cache_update", has_rerun, {"rerun": "docwriter_rerun", "done": END})
-    g.add_edge("docwriter_rerun", "preview_all")
+    g.add_edge("docwriter_rerun", "docs_preview_all")
 
-    return "preview_all", "cache_update"
+    return "docs_preview_all", "cache_update"

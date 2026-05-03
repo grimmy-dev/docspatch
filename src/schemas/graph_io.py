@@ -14,7 +14,7 @@ from src.schemas.state import DocpatchState
 
 type Checkpointer = BaseCheckpointSaver[Any] | AsyncSqliteSaver | MemorySaver
 type DocpatchGraph = StateGraph[DocpatchState]
-type CompiledDocpatchGraph = CompiledStateGraph[DocpatchState, Any, Any]
+type CompiledDocpatchGraph = CompiledStateGraph[DocpatchState, Any, Any, Any]
 type StreamPayload = dict[str, dict[str, object] | list[object]]
 type GraphConfig = RunnableConfig
 
