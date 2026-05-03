@@ -15,7 +15,13 @@ def classify_llm_error(exc: Exception) -> RuntimeError:
     Searches both the exception and its chained cause so LangGraph-wrapped
     errors are classified correctly. Fallback truncates to the first line to
     prevent raw JSON or stack traces leaking into user-facing messages.
-    """
+
+    Args:
+        exc: The raw exception raised by the LLM.
+
+    Returns:
+    A user-friendly RuntimeError that captures the essence of the original
+    exception."""
     parts = [str(exc)]
     cause = exc.__cause__ or exc.__context__
     if cause:

@@ -7,14 +7,30 @@ from pathlib import Path
 
 import questionary
 import typer
-from langgraph.checkpoint.memory import MemorySaver
 
 from src.cli.provider import configure_provider, current_provider_name
 from src.schemas.graph_io import GraphConfig
 from src.schemas.state import DocpatchState
 from src.utils.config import get_api_key, load, save
 from src.utils.git import is_git_repo
-from src.utils.ui import Q_STYLE, cli_error_handler, console, info, step, warn
+from src.utils.ui import Q_STYLE, cli_error_handler, console, info, step
+
+_CONFIG_LABELS: dict[str, str] = {
+    "style": "Style",
+    "model": "Model",
+    "review_model": "Review model",
+    "provider_key": "Provider",
+    "batch_size": "Batch size",
+    "batch_max_lines": "Batch max lines",
+    "tokens_per_fn_compact": "Tokens/fn (compact)",
+    "tokens_per_fn_detailed": "Tokens/fn (detailed)",
+    "large_threshold": "Large repo threshold",
+    "diff_cap": "Diff cap (lines)",
+    "log_count": "Git log entries",
+    "prune_after_days": "Cache prune after (days)",
+    "readme_tokens_compact": "README tokens (compact)",
+    "readme_tokens_detailed": "README tokens (detailed)",
+}
 
 
 def mask_key(key: str | None) -> str:
@@ -50,12 +66,12 @@ def command_preamble(path: Path | None = None, dry_run: bool = False) -> None:
 @cli_error_handler
 def docs(
     path: Path = typer.Argument(Path("."), help="Repository path"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Preview without writing"),
-    style: str | None = typer.Option(None, "--style", help="compact or detailed"),
-    since: str | None = typer.Option(None, "--since", help="Git ref to diff from"),
-    update: bool = typer.Option(False, "--update", help="Re-document all functions"),
-    resume: bool = typer.Option(False, "--resume", help="Resume interrupted run"),
-    check: bool = typer.Option(False, "--check", help="Exit 1 if undocumented/changed functions exist (no LLM)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Estimate tokens and cost without writing"),
+    style: str | None = typer.Option(None, "--style", help="compact (one-liner) or detailed (full docstring). Default from config."),
+    since: str | None = typer.Option(None, "--since", help="Only document functions changed since this git ref (e.g. HEAD~3, main)."),
+    update: bool = typer.Option(False, "--update", help="Re-document all functions, including already documented ones"),
+    resume: bool = typer.Option(False, "--resume", help="Resume a previously interrupted run (uses stable thread ID)"),
+    check: bool = typer.Option(False, "--check", help="Exit 1 if any functions need docs — no LLM, safe for CI"),
 ) -> None:
     """Generates documentation for functions within a repository.
 
@@ -93,15 +109,12 @@ async def _docs_async(
         style (str | None): The documentation style.
         since (str | None): The Git ref to diff from.
         update (bool): If True, re-documents all functions.
-        resume (bool): If True, resumes an interrupted run.
-
-    Returns:
-        None."""
-    from src.cli.runner import make_thread, run
+        resume (bool): If True, resumes an interrupted run."""
+    from src.cli.runner import make_thread, run_docstring
     from src.graph.graphs.docs_graph import build
-    from src.utils.checkpointer import get_checkpointer
+    from src.utils.checkpointer import get_checkpointer, get_memory_saver
 
-    step(name="Performing Checks")
+    step("Performing Checks")
     cfg = load()
     resolved = Path(path).resolve()
     state = DocpatchState(
@@ -115,19 +128,17 @@ async def _docs_async(
 
     tid = make_thread("docs", resolved, resume=resume)
     config: GraphConfig = {"configurable": {"thread_id": tid}}
-    saver, serde = await get_checkpointer()
 
     if dry_run:
-        memory_checkpointer = MemorySaver()
-        memory_checkpointer.serde = serde
-        graph = build(checkpointer=memory_checkpointer)
-        await run(graph, state, config)
+        graph = build(checkpointer=get_memory_saver())
+        await run_docstring(graph, state, config)
         return
 
+    saver, serde = await get_checkpointer()
     async with saver as checkpointer:
         checkpointer.serde = serde
         graph = build(checkpointer=checkpointer)
-        await run(graph, state, config)
+        await run_docstring(graph, state, config)
 
 
 def _run_check(path: Path, since: str | None, update: bool) -> None:
@@ -170,66 +181,63 @@ def setup() -> None:
 
 
 @cli_error_handler
-def config(
-    action: str = typer.Argument("show", help="Action: show, set, or edit"),
-    key: str | None = typer.Argument(None, help="Config key to set"),
-    value: str | None = typer.Argument(None, help="Value for scalar keys"),
-) -> None:
-    """View or modify configuration settings.
-
-    Args:
-        action: Action: show, set, or edit.
-        key: Config key to set.
-        value: Value for scalar keys."""
+def config() -> None:
+    """Display current configuration and offer edit/reset shortcuts."""
     from rich.table import Table
 
+    from src.schemas.config import AppDefaults
+    from src.utils.config import CONFIG_PATH
+
     cfg = load()
-    if action == "show":
-        settings_table = Table(show_header=False, box=None, padding=(0, 2))
-        settings_table.add_column("Key", style="bold")
-        settings_table.add_column("Value", style="sandy_brown")
-        for k, v in cfg.defaults.model_dump().items():
-            settings_table.add_row(k, str(v))
 
-        keys_table = Table(show_header=False, box=None, padding=(0, 2))
-        keys_table.add_column("Provider", style="bold")
-        keys_table.add_column("Key")
-        for provider, key_val in [
-            ("Google Gemini", cfg.keys.google_api_key),
-            ("OpenAI", cfg.keys.openai_api_key),
-            ("Anthropic", cfg.keys.anthropic_api_key),
-        ]:
-            keys_table.add_row(provider, mask_key(key_val))
+    settings_table = Table(show_header=False, box=None, padding=(0, 2))
+    settings_table.add_column("Key", style="bold")
+    settings_table.add_column("Value", style="sandy_brown")
+    for k, v in cfg.defaults.model_dump().items():
+        settings_table.add_row(_CONFIG_LABELS.get(k, k), str(v))
 
-        console.print("\n[bold]Settings[/bold]")
-        console.print(settings_table)
-        console.print("\n[bold]API Keys[/bold]")
-        console.print(keys_table)
-        console.print("\n[dim]dp config edit — open in editor  ·  dp config set provider — change provider[/dim]")
-    elif action == "set":
-        if key in ("provider", "model", "review_model"):
-            updated = configure_provider(cfg)
-            if updated:
-                save(updated)
-                step("Config updated")
-        else:
-            warn(f"Unknown key '{key}'. Settable: provider, model, review_model.")
-    elif action in ("edit", "open"):
-        from src.utils.config import CONFIG_PATH
+    keys_table = Table(show_header=False, box=None, padding=(0, 2))
+    keys_table.add_column("Provider", style="bold")
+    keys_table.add_column("Key")
+    for provider, key_val in [
+        ("Google Gemini", cfg.keys.google_api_key),
+        ("OpenAI", cfg.keys.openai_api_key),
+        ("Anthropic", cfg.keys.anthropic_api_key),
+    ]:
+        keys_table.add_row(provider, mask_key(key_val))
 
+    console.print("\n[bold]Settings[/bold]")
+    console.print(settings_table)
+    console.print("\n[bold]API Keys[/bold]")
+    console.print(keys_table)
+
+    choice: str | None = questionary.select(
+        "Config settings",
+        choices=[
+            questionary.Choice(title="edit", value="edit", shortcut_key="e"),
+            questionary.Choice(title="reset to defaults", value="reset", shortcut_key="r"),
+            questionary.Choice(title="quit", value="quit", shortcut_key="q"),
+        ],
+        style=Q_STYLE,
+        use_shortcuts=True,
+    ).ask()
+
+    if choice is None or choice == "quit":
+        return
+
+    if choice == "edit":
         if not CONFIG_PATH.exists():
             save(cfg)
-        info("Opening config in your editor. Save and close to apply.")
-
         editor = os.environ.get("VISUAL") or os.environ.get("EDITOR")
         if editor:
             subprocess.run([editor, str(CONFIG_PATH)])
         else:
-            # macOS: open, Windows: os.startfile, Linux: xdg-open or webbrowser
             typer.launch(str(CONFIG_PATH))
         step("Config saved.")
-    else:
-        warn(f"Unknown action '{action}'. Valid: show, set, edit.")
+
+    elif choice == "reset":
+        save(cfg.model_copy(update={"defaults": AppDefaults()}))
+        step("Settings reset to defaults. API keys preserved.")
 
 
 @cli_error_handler
@@ -264,16 +272,55 @@ def cleanup() -> None:
         DOCSPATCH_DIR.rmdir()
 
 
+@cli_error_handler
 def readme(
-    path: Path = typer.Argument(Path("."), help="Repository path"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Preview without writing"),
+    path: Path = typer.Argument(Path("."), help="Repository or target directory"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show context summary and token estimate without calling LLM"),
+    rewrite: bool = typer.Option(False, "--rewrite", help="Regenerate from scratch even if a README already exists"),
+    output: Path | None = typer.Option(None, "--output", help="Write README to this path (default: README.md in target dir)"),
+    style: str | None = typer.Option(None, "--style", help="compact (minimal) or detailed (badges, full sections). Default from config."),
+    remarks: str | None = typer.Option(None, "--remarks", help="Extra instructions passed to LLM (e.g. 'add a development section')"),
 ) -> None:
-    """Generate README.md for the repository.
+    """Generate or update README.md for the repository.
 
     Args:
-        path: Repository path.
-        dry_run: Preview without writing."""
-    info("coming soon")
+        path: Repository or target directory (scope support).
+        dry_run: Preview without writing.
+        rewrite: Regenerate from scratch even if README exists.
+        output: Write README to this path.
+        style: compact or detailed.
+        remarks: Extra instructions passed directly to the LLM."""
+    command_preamble(path=path, dry_run=dry_run)
+    asyncio.run(_readme_async(path, dry_run, rewrite, output, style, remarks))
+
+
+async def _readme_async(
+    path: Path,
+    dry_run: bool,
+    rewrite: bool,
+    output: Path | None,
+    style: str | None,
+    remarks: str | None,
+) -> None:
+    from src.cli.runner import run_readme
+    from src.graph.graphs.readme_graph import build
+    from src.schemas.readme_state import ReadmeState
+
+    cfg = load()
+    resolved = Path(path).resolve()
+    state = ReadmeState(
+        repo_path=resolved,
+        target_path=resolved,
+        dry_run=dry_run,
+        rewrite=rewrite,
+        output_path=output.resolve() if output else None,
+        style=style or cfg.defaults.style,
+        remarks=remarks or "",
+    )
+
+    config: GraphConfig = {"configurable": {"thread_id": "readme"}}
+    graph = build()
+    await run_readme(graph, state, config)
 
 
 def clg(
@@ -285,6 +332,7 @@ def clg(
     Args:
         from_ref: Start ref.
         to_ref: End ref."""
+    del from_ref, to_ref
     info("coming soon")
 
 
@@ -297,6 +345,7 @@ def review(
     Args:
         path: Repository path.
         since: Git ref to compare against."""
+    del path, since
     info("coming soon")
 
 
@@ -309,4 +358,5 @@ def init(
     Args:
         path: Repository path.
         dry_run: Preview without writing."""
+    del path, dry_run
     info("coming soon")

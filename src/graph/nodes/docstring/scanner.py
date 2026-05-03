@@ -1,9 +1,5 @@
 """scanner node — discovers Python files in the repository."""
 
-# NOTE: Multi-language support planned. When adding JS/TS/Go etc., extend
-# SUPPORTED_EXTENSIONS and replace _parse_file references with a language-aware
-# dispatcher. The scanner itself only needs to filter by extension.
-
 from pathlib import Path
 
 from src.schemas.graph_io import ScannerUpdate

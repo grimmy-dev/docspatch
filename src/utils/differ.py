@@ -15,11 +15,10 @@ WHITESPACE_RE = re.compile(r"\s+")
 
 
 def normalize(source: str) -> str:
-    """Strip comments and docstrings then collapse whitespace.
+    """Strip comments and docstrings, then collapse whitespace.
 
-    Produces a canonical form for body-hash comparison so that
-    doc-only or comment-only edits do not trigger regeneration.
-    """
+    Produces a canonical form for body-hash comparison so that doc-only or
+    comment-only edits do not trigger regeneration."""
     s = COMMENT_RE.sub("", source)
     s = TRIPLE_DOUBLE_RE.sub("", s)
     s = TRIPLE_SINGLE_RE.sub("", s)
@@ -27,7 +26,7 @@ def normalize(source: str) -> str:
 
 
 def is_significant(old_body: str, new_body: str) -> bool:
-    """Return True when normalised bodies differ (logic changed)."""
+    """Return True when normalized bodies differ (logic changed)."""
     return normalize(old_body) != normalize(new_body)
 
 

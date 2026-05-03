@@ -1,6 +1,7 @@
-"""Libcst_parser node — extracts function metadata from Python source files using LibCST."""
+"""libcst_parser node — extracts function and module-level metadata using LibCST."""
 
 import hashlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import libcst as cst
@@ -16,7 +17,7 @@ logger = get_logger(__name__)
 
 
 class FunctionExtractor(cst.CSTVisitor):
-    """LibCST Visitor to extract function metadata and line numbers."""
+    """LibCST Visitor to extract function and module-level metadata."""
 
     METADATA_DEPENDENCIES = (PositionProvider,)
 
@@ -25,23 +26,60 @@ class FunctionExtractor(cst.CSTVisitor):
         self.source_lines = source_lines
         self.catalog: dict[str, FunctionMetadata] = {}
 
+    def _is_docstring_stmt(self, node: cst.CSTNode) -> bool:
+        return (
+            isinstance(node, cst.SimpleStatementLine)
+            and len(node.body) == 1
+            and isinstance(node.body[0], cst.Expr)
+            and isinstance(node.body[0].value, (cst.SimpleString, cst.ConcatenatedString, cst.FormattedString))
+        )
+
+    def visit_Module(self, node: cst.Module) -> bool | None:
+        has_docstring = node.body and self._is_docstring_stmt(node.body[0])
+        fn_id = make_fn_id(self.filepath, "__module__")
+
+        if has_docstring:
+            docstring_text = node.get_docstring()
+            pos = self.get_metadata(PositionProvider, node.body[0])
+            end_line = pos.end.line if isinstance(pos, CodeRange) else 1
+            body_hash = hashlib.sha256((docstring_text or "").encode()).hexdigest()[:16]
+            self.catalog[fn_id] = FunctionMetadata(
+                kind="module",
+                name="__module__",
+                file_path=self.filepath,
+                docstring=docstring_text,
+                start_line=1,
+                end_line=end_line,
+                signature=f"# {self.filepath.name}",
+                body_hash=body_hash,
+            )
+        else:
+            self.catalog[fn_id] = FunctionMetadata(
+                kind="module",
+                name="__module__",
+                file_path=self.filepath,
+                docstring=None,
+                start_line=1,
+                end_line=1,
+                signature=f"# {self.filepath.name}",
+                body_hash=hashlib.sha256(b"").hexdigest()[:16],
+            )
+        return None  # continue visiting children
+
     def visit_FunctionDef(self, node: cst.FunctionDef) -> bool:
         pos = self.get_metadata(PositionProvider, node)
-
-        # Pylance fix: Ensure pos is actually a CodeRange before accessing .start
         if not isinstance(pos, CodeRange):
             return False
 
         start = pos.start.line
         end = pos.end.line
 
-        prev = start - 2  # 0-indexed line immediately before this node
+        prev = start - 2
         if prev >= 0 and "# dp: ignore" in self.source_lines[prev]:
             return False
 
         src_slice = "\n".join(self.source_lines[start - 1 : end])
 
-        # Generate a clean signature stub
         stub = node.with_changes(body=cst.IndentedBlock(body=[cst.SimpleStatementLine(body=[cst.Pass()])]))
         stub_code = cst.Module(body=[stub]).code
         signature = stub_code.split("\n")[0].strip()
@@ -53,6 +91,7 @@ class FunctionExtractor(cst.CSTVisitor):
 
         fn_id = make_fn_id(self.filepath, node.name.value)
         self.catalog[fn_id] = FunctionMetadata(
+            kind="function",
             name=node.name.value,
             file_path=self.filepath,
             docstring=docstring,
@@ -61,14 +100,14 @@ class FunctionExtractor(cst.CSTVisitor):
             signature=signature,
             body_hash=body_hash,
         )
-        return False  # Do not visit nested functions
+        return False  # do not visit nested functions
 
     def visit_ClassDef(self, node: cst.ClassDef) -> bool:
-        return True  # Visit methods inside classes
+        return True  # visit methods inside classes
 
 
 def extract_functions(source: str, filepath: Path) -> dict[str, FunctionMetadata]:
-    """Pure function to extract metadata from source code using LibCST."""
+    """Extract function and module metadata from Python source using LibCST."""
     try:
         module = cst.parse_module(source)
         wrapper = MetadataWrapper(module)
@@ -83,7 +122,7 @@ def extract_functions(source: str, filepath: Path) -> dict[str, FunctionMetadata
 
 
 def parse_file(filepath: Path) -> dict[str, FunctionMetadata]:
-    """Shell function to read file and call pure extraction."""
+    """Read file and extract all metadata."""
     try:
         source = filepath.read_text(encoding="utf-8")
     except OSError:
@@ -92,12 +131,15 @@ def parse_file(filepath: Path) -> dict[str, FunctionMetadata]:
 
 
 def libcst_parser(state: DocpatchState) -> ParsedFunctionsUpdate:
-    """Parse every file in state.changed_files and collect function metadata."""
+    """Parse every file in state.changed_files in parallel and collect metadata."""
     full_catalog: dict[str, FunctionMetadata] = {}
 
-    for path in state.changed_files:
-        file_catalog = parse_file(path)
-        logger.debug("libcst_parser: %s → %d functions", path.name, len(file_catalog))
-        full_catalog.update(file_catalog)
+    with ThreadPoolExecutor() as executor:
+        futures = {executor.submit(parse_file, path): path for path in state.changed_files}
+        for future in as_completed(futures):
+            path = futures[future]
+            file_catalog = future.result()
+            logger.debug("libcst_parser: %s → %d entries", path.name, len(file_catalog))
+            full_catalog.update(file_catalog)
 
     return {"catalog": full_catalog}

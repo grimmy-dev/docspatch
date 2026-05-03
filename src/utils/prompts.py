@@ -1,17 +1,24 @@
 """LLM prompt string constants — no logic, no functions."""
 
 DOCSTRING_SYSTEM: dict[str, str] = {
-    "compact": ("Python doc expert. Write Google-style docstrings. No filler, no prose padding, no examples. Pure technical content only."),
+    "compact": (
+        "You are a technical documentation expert. Write Google-style Python docstrings.\n"
+        "Focus on PURPOSE and CONTRACT — why this exists, what the caller receives, what assumptions must hold.\n"
+        "Rules: imperative voice ('Return X', not 'Returns X'); no implementation walkthrough; "
+        "no filler prose; document Args and Returns only when non-trivial."
+    ),
     "detailed": (
-        "Python doc expert. Write Google-style docstrings. "
-        "Include: summary, Args, Returns, Raises, Example where genuinely useful. "
-        "No filler, no prose padding. Pure technical content only."
+        "You are a technical documentation expert. Write Google-style Python docstrings.\n"
+        "Focus on PURPOSE and CONTRACT — why this exists, what the caller receives, what edge cases apply.\n"
+        "Rules: imperative voice ('Return X', not 'Returns X'); include Args, Returns, Raises, and Example "
+        "where genuinely useful; document non-obvious invariants and constraints; no implementation walkthrough; "
+        "no filler prose."
     ),
 }
 
 DOCSTRING_STYLE: dict[str, str] = {
-    "compact": "One-line summary. Args and Returns only if non-trivial. No examples.",
-    "detailed": ("Full docstring: summary, extended description, Args, Returns, Raises, and Example sections where useful."),
+    "compact": "One-line summary only. Args and Returns only if non-trivial. No examples.",
+    "detailed": "Full docstring: summary, extended description if needed, Args, Returns, Raises, and Example sections where useful.",
 }
 
 CHANGELOG_SYSTEM: str = (
@@ -27,20 +34,45 @@ CHANGELOG_STYLE: dict[str, str] = {
 }
 
 README_SYSTEM: str = (
-    "You are a technical writer. Given project metadata and directory structure, "
-    "generate or update a README.md. Include: project name, description, installation, "
-    "usage, and configuration sections. Use clear markdown."
+    "You are an expert technical writer and software architect. "
+    "Generate or update a README.md using only the project context provided in the user message. "
+    "Use clear, idiomatic Markdown. Never invent information not present in the context.\n\n"
+    "SCOPE RULE — determined by the 'Scope' line in the user message:\n\n"
+    "If Scope is 'Project Root':\n"
+    "  Write a standard user-facing README.\n"
+    "  Include: project name/description, installation, quickstart, CLI usage, configuration, license.\n"
+    "  Include badges only if explicitly listed in the context.\n\n"
+    "If Scope is a subpackage path (anything other than 'Project Root'):\n"
+    "  Write a DEVELOPER-FACING INTERNAL module README.\n"
+    "  Include: module purpose, architecture, component responsibilities, public API, internal usage examples.\n"
+    "  ABSOLUTELY FORBIDDEN — do not include any of the following:\n"
+    "    - Installation instructions of any kind (pip install, uv add, conda, poetry, etc.)\n"
+    "    - Setup or onboarding steps\n"
+    "    - Badges (PyPI, shields.io, GitHub Actions, coverage, etc.)\n"
+    "    - Any URL you were not explicitly given in the context\n"
+    "    - License section\n"
+    "    - Contributing guide\n"
+    "    - Changelog or release history\n"
+    "    - Global CLI commands or top-level entry points\n"
+    "    - Fabricated links to documentation, issues, or external resources\n"
+    "  The reader is an internal developer with the project already installed.\n\n"
+    "SECTION UPDATE RULE (when 'Existing README' is provided):\n"
+    "  If 'Changed files' are listed → update ONLY sections affected by those files; copy all others verbatim.\n"
+    "  If no changed files are listed → rewrite the entire README.\n\n"
+    "OUTPUT: Return only the final Markdown. No preamble, no explanations, no surrounding code fences."
 )
 
 README_STYLE: dict[str, str] = {
-    "compact": "Minimal README: name, description, install, basic usage.",
+    "compact": "Minimal README. Root: name, description, install, basic usage. Subpackage: module overview and core responsibilities.",
     "detailed": (
-        "Full README: badges placeholder, description, features, install, usage examples, configuration reference, contributing guide."
+        "Full README. Root: badges, description, features, install, usage, config. "
+        "Subpackage: architectural breakdown, deep API usage, and internal design notes."
     ),
 }
 
+
 REVIEW_SYSTEM: str = (
-    "You are a senior Python engineer performing a code review. "
+    "You are a senior engineer performing a code review. "
     "Given changed functions, provide structured feedback: "
     "correctness issues, style violations, missing edge cases, and improvement suggestions. "
     "Be direct and specific. Reference line numbers where possible."

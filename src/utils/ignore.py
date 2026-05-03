@@ -17,17 +17,14 @@ DEFAULT_IGNORE_PATTERNS = [
 
 
 def load_ignore(root: Path) -> pathspec.PathSpec[pathspec.Pattern]:
-    """Build ignore spec from built-in defaults plus optional .docsignore at repo root.
-
-    Always returns a PathSpec — defaults apply even when .docsignore is absent.
-    Users can negate a default with ! (e.g. '!tests/') in their .docsignore.
+    """Build an ignore spec from built-in defaults and optional .docsignore at the repository root.
 
     Args:
         root: The root directory of the repository.
 
     Returns:
-        A PathSpec combining default patterns and any user-defined patterns.
-    """
+        A PathSpec combining default patterns and any user-defined patterns. This spec is always returned,
+        even if .docsignore is absent."""
     patterns = list(DEFAULT_IGNORE_PATTERNS)
 
     ignore_file = root / ".docsignore"
@@ -43,16 +40,16 @@ def load_ignore(root: Path) -> pathspec.PathSpec[pathspec.Pattern]:
 
 
 def is_ignored(spec: pathspec.PathSpec[pathspec.Pattern], root: Path, abs_path: Path) -> bool:
-    """Return True when abs_path matches the ignore spec relative to root.
+    """Return True if the absolute path matches the ignore spec relative to the provided root.
 
     Args:
-        spec: The PathSpec object.
-        root: The root directory to calculate the relative path from.
-        abs_path: The absolute path of the file to check.
+        spec: The PathSpec object containing ignore patterns.
+        root: The root directory from which the relative path of `abs_path` is calculated.
+        abs_path: The absolute path of the file to check against the ignore patterns.
 
     Returns:
-        True if the file should be ignored, False otherwise.
-    """
+        True if `abs_path` should be ignored; False otherwise, including if `abs_path` is not
+        a descendant of `root`."""
     try:
         rel = abs_path.relative_to(root)
         return bool(spec.match_file(str(rel)))

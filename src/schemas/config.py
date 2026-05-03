@@ -18,6 +18,8 @@ class AppDefaults(BaseModel):
     diff_cap: int = 200
     log_count: int = 10
     prune_after_days: int = 30
+    readme_tokens_compact: int = 2000
+    readme_tokens_detailed: int = 5000
 
 
 class AppKeys(BaseModel):

@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.graph.nodes.writer import transform_source
+from src.graph.nodes.docstring.writer import transform_source
 
 
 def test_inserts_docstring_on_undocumented_function() -> None:
@@ -40,5 +40,5 @@ def test_empty_docs_returns_source_unchanged() -> None:
 
 
 def test_invalid_python_raises() -> None:
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         transform_source("def broken(", {"broken": "doc"})

@@ -28,22 +28,35 @@ PROVIDER_MAP: dict[str, str] = {
 
 
 def request_cancel() -> None:
-    """Signal all in-flight LLM calls to abort."""
+    """Signal all in-flight LLM calls to abort.
+
+    Sets a cancellation event that should be checked by running LLM calls."""
     CANCEL_EVENT.set()
 
 
 def reset_cancel() -> None:
-    """Clear the cancellation flag before starting a new run."""
+    """Clear the cancellation flag.
+
+    Call this before starting a new run to ensure any previous cancellation requests are ignored."""
     CANCEL_EVENT.clear()
 
 
 def is_cancelled() -> bool:
-    """Return True when a cancellation has been requested."""
+    """Return True when a cancellation has been requested.
+
+    This flag is set by a separate thread or process to signal that the current operation should stop gracefully."""
     return CANCEL_EVENT.is_set()
 
 
 def extract_text(content: str | list[str | dict[str, object]]) -> str:
-    """Pull plain text from a string or list of content blocks."""
+    """Pull plain text from a string or list of content blocks.
+
+        Args:
+            content: The LLM response content, which can be a string or a list of mixed content blocks.
+
+        Returns:
+            A single string containing all extracted text.
+        """
     if isinstance(content, str):
         return content
     parts: list[str] = []
@@ -56,10 +69,14 @@ def extract_text(content: str | list[str | dict[str, object]]) -> str:
 
 
 def extract_tokens(response: BaseMessage) -> int:
-    """Extract token count from an AIMessage; returns 0 when unavailable.
+    """Extract the total token count from a LangChain `BaseMessage` object.
 
-    Check order: total_tokens → input+output → Gemini prompt+candidates.
-    """
+        Args:
+            response: The `BaseMessage` instance from an LLM response.
+
+        Returns:
+            The total number of tokens used, or 0 if token information is unavailable.
+        """
     usage = getattr(response, "usage_metadata", None) or {}
     if usage:
         if "total_tokens" in usage:
@@ -72,7 +89,16 @@ def extract_tokens(response: BaseMessage) -> int:
 
 
 def make_google(model: str, api_key: str) -> BaseChatModel:
-    """Create a ChatGoogleGenerativeAI instance; key set via env var."""
+    """Create a ChatGoogleGenerativeAI instance.
+
+    Sets the GOOGLE_API_KEY environment variable.
+
+    Args:
+        model: The name of the Google Generative AI model to use.
+        api_key: The API key for Google Generative AI.
+
+    Returns:
+        A ChatGoogleGenerativeAI instance."""
     os.environ["GOOGLE_API_KEY"] = api_key
     from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -80,7 +106,16 @@ def make_google(model: str, api_key: str) -> BaseChatModel:
 
 
 def make_openai(model: str, api_key: str) -> BaseChatModel:
-    """Create a ChatOpenAI instance; key set via env var."""
+    """Create a ChatOpenAI instance.
+
+    Sets the OPENAI_API_KEY environment variable.
+
+    Args:
+        model: The name of the OpenAI model to use.
+        api_key: The API key for OpenAI.
+
+    Returns:
+        A ChatOpenAI instance."""
     os.environ["OPENAI_API_KEY"] = api_key
     from langchain_openai import ChatOpenAI
 
@@ -88,7 +123,16 @@ def make_openai(model: str, api_key: str) -> BaseChatModel:
 
 
 def make_anthropic(model: str, api_key: str) -> BaseChatModel:
-    """Create a ChatAnthropic instance; key set via env var."""
+    """Create a ChatAnthropic instance.
+
+    Sets the ANTHROPIC_API_KEY environment variable.
+
+    Args:
+        model: The name of the Anthropic model to use.
+        api_key: The API key for Anthropic.
+
+    Returns:
+        A ChatAnthropic instance."""
     os.environ["ANTHROPIC_API_KEY"] = api_key
     from langchain_anthropic import ChatAnthropic
 
@@ -102,12 +146,38 @@ FACTORIES: dict[str, Callable[[str, str], BaseChatModel]] = {
 }
 
 
-def get_llm(model_key: str) -> BaseChatModel:
-    """Return a LangChain chat model using the configured provider.
+def _max_tokens_kwarg(llm: BaseChatModel, n: int) -> dict[str, int]:
+    """Return the provider-specific keyword argument for capping output tokens.
 
-    Raises RuntimeError immediately when provider_key is set but API key is missing.
-    When no provider_key is set, iterates all configured keys.
-    """
+        Args:
+            llm: The `BaseChatModel` instance.
+            n: The maximum number of tokens to allow.
+
+        Returns:
+            A dictionary with the appropriate keyword argument and value for the given LLM.
+        """
+    try:
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        if isinstance(llm, ChatGoogleGenerativeAI):
+            return {"max_output_tokens": n}
+    except ImportError:
+        pass
+    return {"max_tokens": n}
+
+
+def get_llm(model_key: str) -> BaseChatModel:
+    """Return a LangChain chat model instance for the given key.
+
+        Args:
+            model_key: The specific model identifier (e.g., "gpt-4o").
+
+        Returns:
+            A LangChain `BaseChatModel` instance.
+
+        Raises:
+            RuntimeError: If no API key is configured, the provider is unknown, or the specified API key is missing.
+        """
     cfg = load()
     provider_key = cfg.defaults.provider_key
 
@@ -134,14 +204,26 @@ async def acall_llm[T: BaseModel](
     system: str,
     prompt: str,
     output_model: type[T] | None = None,
+    max_tokens: int | None = None,
 ) -> tuple[T | None, str, int]:
-    """Async LLM call used by all async graph nodes.
+    """Make an asynchronous call to an LLM, supporting structured or raw text output.
 
-    When output_model is provided, attempts structured output via with_structured_output.
-    Returns (parsed, "", tokens) on structured success.
-    Returns (None, raw_text, tokens) on fallback or when output_model is None.
-    Returns (None, "", 0) when cancelled.
-    """
+        Args:
+            model_key: Identifier for the LLM to use (e.g., "gpt-4o").
+            system: The system prompt content.
+            prompt: The user prompt content.
+            output_model: Pydantic model for structured output, if desired.
+            max_tokens: Maximum number of tokens for the LLM's output.
+
+        Returns:
+            A tuple containing:
+            - parsed: The Pydantic model instance if `output_model` was provided and parsing succeeded, otherwise `None`.
+            - raw_text: The raw string output from the LLM if `output_model` was `None` or structured output failed, otherwise an empty string.
+            - token_count: The total number of tokens used for the request.
+
+        Raises:
+            LLMError: If an error occurs during the LLM call.
+        """
     if is_cancelled():
         return None, "", 0
 
@@ -164,7 +246,8 @@ async def acall_llm[T: BaseModel](
             except (NotImplementedError, AttributeError) as _:
                 pass  # provider lacks structured output — fall through to raw call
 
-        raw_msg = await llm.ainvoke(messages)
+        caller = llm.bind(**_max_tokens_kwarg(llm, max_tokens)) if max_tokens is not None else llm
+        raw_msg = cast(BaseMessage, await caller.ainvoke(messages))
         tokens = extract_tokens(raw_msg)
         raw_text = extract_text(raw_msg.content)
         logger.debug("acall_llm raw tokens=%d", tokens)

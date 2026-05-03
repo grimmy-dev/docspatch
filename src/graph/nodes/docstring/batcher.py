@@ -10,17 +10,23 @@ logger = get_logger(__name__)
 
 
 def group_batches(fn_ids: list[str], catalog: dict[str, FunctionMetadata], batch_size: int, max_lines: int) -> list[list[str]]:
-    """Group function IDs into batches keeping same-file functions together and respecting line limits."""
+    """Group function IDs into batches, keeping same-file functions together.
+
+    Sorts by size descending within each file for better bin-packing.
+    Leftover incomplete batches from all files are merged and re-batched
+    to avoid many single-function LLM calls.
+    """
     if not fn_ids:
         return []
 
     by_file: dict[str, list[str]] = {}
     for fn_id in fn_ids:
-        fn = catalog[fn_id]
-        by_file.setdefault(str(fn.file_path), []).append(fn_id)
+        by_file.setdefault(str(catalog[fn_id].file_path), []).append(fn_id)
 
     batches: list[list[str]] = []
+
     for file_fns in by_file.values():
+        file_fns.sort(key=lambda fid: catalog[fid].end_line - catalog[fid].start_line, reverse=True)
         current: list[str] = []
         current_lines = 0
 
@@ -28,7 +34,6 @@ def group_batches(fn_ids: list[str], catalog: dict[str, FunctionMetadata], batch
             fn = catalog[fn_id]
             lines = max(1, fn.end_line - fn.start_line)
 
-            # If adding this function exceeds max_lines AND the batch is not empty, start a new batch
             if current and (current_lines + lines > max_lines):
                 batches.append(current)
                 current = []
@@ -62,7 +67,7 @@ def batcher(state: DocpatchState) -> BatcherUpdate:
     oversized: list[str] = []
     for fid in state.significant_functions:
         fn = state.catalog[fid]
-        if (fn.end_line - fn.start_line) > diff_cap:
+        if fn.kind == "function" and (fn.end_line - fn.start_line) > diff_cap:
             oversized.append(fn.name)
         else:
             eligible.append(fid)

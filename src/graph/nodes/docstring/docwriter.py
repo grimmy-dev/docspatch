@@ -27,27 +27,51 @@ def read_file_slices(file_path: Path, functions: list[FunctionMetadata]) -> dict
     return {fn.name: "\n".join(lines[fn.start_line - 1 : fn.end_line]) for fn in functions}
 
 
-def build_symbol_table(fn_ids: list[str], catalog: dict[str, FunctionMetadata]) -> dict[str, str]:
-    """Map function names to their signatures for LLM context."""
-    return {catalog[fid].name: catalog[fid].signature for fid in fn_ids if fid in catalog}
-
-
 def build_prompt(
     batch_ids: list[str],
     catalog: dict[str, FunctionMetadata],
-    symbol_table: dict[str, str],
     style: str,
+    tokens_per_fn: int,
 ) -> str:
-    """Create the LLM prompt for a batch of functions."""
-    batch_names = {catalog[fid].name for fid in batch_ids}
-    context_lines = [f"  {sig}" for name, sig in symbol_table.items() if name not in batch_names]
-    context = "\n".join(context_lines[:20])
+    """Create the LLM prompt for a batch of functions or a single module."""
     style_note = DOCSTRING_STYLE.get(style, DOCSTRING_STYLE["compact"])
+
+    # Module-level docstring: minimal dedicated prompt
+    if len(batch_ids) == 1 and catalog[batch_ids[0]].kind == "module":
+        fn = catalog[batch_ids[0]]
+        file_sigs = [f"  {meta.signature}" for meta in catalog.values() if meta.file_path == fn.file_path and meta.kind == "function"][:20]
+        lines = [
+            f"Style: {style_note} Module docstring: one concise line, up to {tokens_per_fn} tokens.",
+            f"\nFile: {fn.file_path.name}",
+        ]
+        if file_sigs:
+            lines.append("\nDefined in this file:\n" + "\n".join(file_sigs))
+        if fn.docstring:
+            lines.append(f"\nExisting docstring (update if needed):\n{fn.docstring}")
+        lines.append('\nReturn JSON: [{"name": "__module__", "docstring": "..."}]')
+        return "\n".join(lines)
+
+    # Function docstrings: same-file context first
+    batch_files = {catalog[fid].file_path for fid in batch_ids}
+    batch_names = {catalog[fid].name for fid in batch_ids}
+
+    same_file = [
+        f"  {fn.signature}"
+        for fn in catalog.values()
+        if fn.name not in batch_names and fn.file_path in batch_files and fn.kind == "function"
+    ]
+    cross_file = [
+        f"  {fn.signature}"
+        for fn in catalog.values()
+        if fn.name not in batch_names and fn.file_path not in batch_files and fn.kind == "function"
+    ]
+    context = "\n".join((same_file + cross_file)[:20])
 
     by_file: dict[Path, list[FunctionMetadata]] = {}
     for fid in batch_ids:
         fn = catalog[fid]
-        by_file.setdefault(fn.file_path, []).append(fn)
+        if fn.kind == "function":
+            by_file.setdefault(fn.file_path, []).append(fn)
 
     functions_text_parts = []
     for file_path, fns in by_file.items():
@@ -56,7 +80,11 @@ def build_prompt(
             functions_text_parts.append(f"Function: {fn.name}\n{slices[fn.name]}")
 
     functions_text = "\n\n".join(functions_text_parts)
-    return f"Style: {style_note}\n\nRelated functions (signatures only):\n{context}\n\nGenerate docstrings for:\n\n{functions_text}"
+    return (
+        f"Style: {style_note} Each docstring: up to {tokens_per_fn} tokens per function if justified.\n\n"
+        f"Related functions (signatures only — for context only, do not document these):\n{context}\n\n"
+        f"Generate docstrings for:\n\n{functions_text}"
+    )
 
 
 def parse_response_fallback(text: str, batch_names: set[str]) -> list[DocstringOutput]:
@@ -86,8 +114,8 @@ async def docwriter_single(state: DocpatchState) -> BatchDocsUpdate:
     cfg = load()
     style = st.style
     system = DOCSTRING_SYSTEM.get(style, DOCSTRING_SYSTEM["compact"])
-    symbol_table = build_symbol_table(list(st.catalog.keys()), st.catalog)
-    prompt = build_prompt(st.current_batch, st.catalog, symbol_table, style)
+    tokens_per_fn = cfg.defaults.tokens_per_fn_compact if style == "compact" else cfg.defaults.tokens_per_fn_detailed
+    prompt = build_prompt(st.current_batch, st.catalog, style, tokens_per_fn)
     batch_names = {st.catalog[fid].name for fid in st.current_batch}
 
     parsed, raw_text, tokens = await acall_llm(cfg.defaults.model, system, prompt, output_model=BatchDocstringOutput)
@@ -97,8 +125,6 @@ async def docwriter_single(state: DocpatchState) -> BatchDocsUpdate:
         else parse_response_fallback(raw_text, batch_names)
     )
 
-    logger.debug("docwriter_single: %d results, %d tokens", len(items), tokens)
-
     generated_docs: dict[str, str] = {}
     for fid in st.current_batch:
         fn_name = st.catalog[fid].name
@@ -106,35 +132,37 @@ async def docwriter_single(state: DocpatchState) -> BatchDocsUpdate:
         if result:
             generated_docs[fid] = result.docstring
 
+    logger.debug("docwriter_single: %d results, %d tokens", len(items), tokens)
     return {"generated_docs": generated_docs, "token_actual": tokens}
 
 
 def collect_batches(state: DocpatchState) -> CollectBatchesUpdate:
-    """Consolidate all batch results. (State reducer handles the actual merge)."""
+    """Consolidate all batch results. (State reducer handles the actual merge.)"""
     return {}
 
 
 async def _process_rerun_batch(
     fid: str,
-    st: DocpatchState,
-    symbol_table: dict[str, str],
+    state: DocpatchState,
     style: str,
     system: str,
     model_key: str,
+    tokens_per_fn: int,
 ) -> tuple[str, str | None, int]:
     """Call LLM for a single rerun function; returns (fid, docstring | None, tokens)."""
     if is_cancelled():
         return fid, None, 0
 
-    fn = st.catalog[fid]
-    prompt = build_prompt([fid], st.catalog, symbol_table, style)
-    feedback = st.feedback.get(fid, "")
+    fn = state.catalog[fid]
+    prompt = build_prompt([fid], state.catalog, style, tokens_per_fn)
+    feedback = state.feedback.get(fid, "")
     if feedback:
         prompt += f"\n\nUSER FEEDBACK FOR REVISION:\n{feedback}\n\nAdjust the docstring to address this feedback."
 
+    batch_names = {fn.name}
     parsed, raw_text, tokens = await acall_llm(model_key, system, prompt, output_model=BatchDocstringOutput)
     items = (
-        [i for i in parsed.items if i.name == fn.name and i.docstring.strip()] if parsed else parse_response_fallback(raw_text, {fn.name})
+        [i for i in parsed.items if i.name == fn.name and i.docstring.strip()] if parsed else parse_response_fallback(raw_text, batch_names)
     )
     return fid, items[0].docstring if items else None, tokens
 
@@ -148,9 +176,9 @@ async def docwriter_rerun(state: DocpatchState) -> RerunDocsUpdate:
     cfg = load()
     style = st.style
     system = DOCSTRING_SYSTEM.get(style, DOCSTRING_SYSTEM["compact"])
-    symbol_table = build_symbol_table(list(st.catalog.keys()), st.catalog)
+    tokens_per_fn = cfg.defaults.tokens_per_fn_compact if style == "compact" else cfg.defaults.tokens_per_fn_detailed
 
-    tasks = [_process_rerun_batch(fid, st, symbol_table, style, system, cfg.defaults.model) for fid in st.rerun_docs]
+    tasks = [_process_rerun_batch(fid, st, style, system, cfg.defaults.model, tokens_per_fn) for fid in st.rerun_docs]
     results = await asyncio.gather(*tasks)
 
     generated_docs: dict[str, str] = {}

@@ -12,8 +12,7 @@ logger = get_logger(__name__)
 def get_repo(path: Path | None = None) -> git.Repo:
     """Return the git.Repo for the given path (or cwd); search parent dirs.
 
-    Raises RuntimeError when no git repository is found.
-    """
+    Raises RuntimeError when no git repository is found."""
     try:
         return git.Repo(path or ".", search_parent_directories=True)
     except git.InvalidGitRepositoryError as exc:

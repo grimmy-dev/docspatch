@@ -6,7 +6,7 @@ import questionary
 
 from src.schemas.config import AppConfig, AppDefaults, ProviderConfig
 from src.utils.providers import CUSTOM, PROVIDERS
-from src.utils.ui import Q_STYLE
+from src.utils.ui import Q_STYLE, console
 
 
 def pick_model(label: str, choices: list[str]) -> str | None:
@@ -49,6 +49,8 @@ def configure_provider(cfg: AppConfig) -> AppConfig | None:
 
     Returns:
         An updated AppConfig or None."""
+    console.print(f"[dim]Current: {cfg.defaults.provider_key} · model: {cfg.defaults.model} · review: {cfg.defaults.review_model}[/dim]\n")
+
     name = questionary.select("Provider:", choices=list(PROVIDERS.keys()), style=Q_STYLE).ask()
     if name is None:
         return None

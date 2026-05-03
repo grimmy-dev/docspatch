@@ -2,7 +2,7 @@
 
 from conftest import make_catalog, make_fn
 
-from src.graph.nodes.batcher import group_batches
+from src.graph.nodes.docstring.batcher import group_batches
 
 
 def test_empty_returns_empty() -> None:

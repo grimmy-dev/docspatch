@@ -10,7 +10,13 @@ _DATE_FORMAT = "%H:%M:%S"
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Return a logger under the docspatch hierarchy so records reach setup handlers."""
+    """Return a logger under the docspatch hierarchy so records reach setup handlers.
+
+    Args:
+        name: The name of the logger to retrieve.
+
+    Returns:
+        A logging.Logger instance."""
     return logging.getLogger(f"docspatch.{name}")
 
 
@@ -19,7 +25,9 @@ def setup_logging(debug: bool = False) -> None:
 
     Always writes DEBUG+ to DOCSPATCH_DIR/docspatch.log (5 MB, 3 backups).
     Adds a Rich-formatted console handler when debug=True.
-    """
+
+    Args:
+        debug: If True, enable Rich-formatted console logging."""
     root = logging.getLogger("docspatch")
     if root.handlers:
         return

@@ -1,9 +1,10 @@
-"""SQLite checkpointer management for persistent LangGraph state."""
+"""SQLite and in-memory checkpointer helpers for LangGraph pipelines."""
 
 import sqlite3
 from contextlib import AbstractAsyncContextManager
 from datetime import datetime, timedelta
 
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
@@ -21,8 +22,12 @@ DB_WARN_MB = 50
 async def get_checkpointer() -> tuple[AbstractAsyncContextManager[AsyncSqliteSaver], JsonPlusSerializer]:
     """Initialize and return a context manager for the SQLite checkpoint store.
 
-    Sets up the checkpoint directory and initializes a context manager for
-    saving/loading checkpoint data to an SQLite database."""
+    Args:
+        None
+
+    Returns:
+        A tuple containing an AbstractAsyncContextManager for SQLite saving
+        and a JsonPlusSerializer."""
     DOCSPATCH_DIR.mkdir(parents=True, exist_ok=True)
 
     if DB_PATH.exists():
@@ -38,18 +43,39 @@ async def get_checkpointer() -> tuple[AbstractAsyncContextManager[AsyncSqliteSav
         logger.debug("Pruned %d stale checkpoint threads and vacuumed DB", deleted)
     conn.close()
 
-    serde = JsonPlusSerializer(
+    return (AsyncSqliteSaver.from_conn_string(str(DB_PATH)), make_serde())
+
+
+def get_memory_saver() -> MemorySaver:
+    """Return a MemorySaver configured with the shared JsonPlusSerializer.
+
+    Use this for pipelines that don't need SQLite persistence (readme, dry-run)."""
+    serde = make_serde()
+    saver = MemorySaver()
+    saver.serde = serde
+    return saver
+
+
+def make_serde() -> JsonPlusSerializer:
+    """Build the shared serializer for all LangGraph pipelines."""
+    return JsonPlusSerializer(
         allowed_msgpack_modules=[
             ("src.schemas.function", "FunctionMetadata"),
             ("src.schemas.state", "DocpatchState"),
+            ("src.schemas.readme_state", "ReadmeState"),
         ]
     )
 
-    return (AsyncSqliteSaver.from_conn_string(str(DB_PATH)), serde)
-
 
 def prune_old_threads(conn: sqlite3.Connection, prune_after_days: int) -> int:
-    """Delete checkpoint threads older than the configured expiration."""
+    """Delete checkpoint threads older than the configured expiration.
+
+    Args:
+        conn: An active SQLite database connection.
+        prune_after_days: The number of days after which threads are considered stale.
+
+    Returns:
+        The number of threads deleted."""
     cutoff = (datetime.now() - timedelta(days=prune_after_days)).strftime("%Y%m%d%H%M%S")
     try:
         cur = conn.execute(

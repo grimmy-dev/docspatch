@@ -8,7 +8,15 @@ from src.schemas.function import FunctionMetadata
 
 
 def merge_dicts(a: dict[str, str], b: dict[str, str]) -> dict[str, str]:
-    """Reducer: Right-side wins on key conflict for dictionaries."""
+    """Reducer: Right-side wins on key conflict for dictionaries.
+
+    Args:
+        a (dict[str, str]): The left dictionary.
+        b (dict[str, str]): The right dictionary.
+
+    Returns:
+        dict[str, str]: A new dictionary containing all key-value pairs from both `a` and `b`,
+            with values from `b` overwriting values from `a` in case of key conflicts."""
     return {**a, **b}
 
 

@@ -1,12 +1,14 @@
-"""preview node — interrupt-based docstring review session."""
+"""Interrupt-based preview nodes for docs and readme pipelines."""
 
 from langgraph.types import interrupt
 
 from src.schemas.graph_io import PreviewUpdate, ReviewInterrupt, ReviewSessionResult
+from src.schemas.readme_io import ReadmePreviewUpdate, ReadmeReviewInterrupt
+from src.schemas.readme_state import ReadmeState
 from src.schemas.state import DocpatchState
 
 
-def preview_all(state: DocpatchState) -> PreviewUpdate:
+def docs_preview_all(state: DocpatchState) -> PreviewUpdate:
     """Interrupt the graph so the CLI can run the interactive review session."""
     if not state.generated_docs:
         return {"accepted_docs": {}, "rerun_docs": [], "feedback": {}}
@@ -31,3 +33,12 @@ def preview_all(state: DocpatchState) -> PreviewUpdate:
 def has_rerun(state: DocpatchState) -> str:
     """Conditional edge: loop back to rerun node when rerun_docs is non-empty."""
     return "rerun" if state.rerun_docs else "done"
+
+
+def readme_preview_all(state: ReadmeState) -> ReadmePreviewUpdate:
+    """Interrupt the graph so the CLI can present the generated README for review."""
+    if not state.generated_readme:
+        return {"accepted_readme": None}
+
+    result: str | None = interrupt(ReadmeReviewInterrupt(type="readme_review", content=state.generated_readme))
+    return {"accepted_readme": result}

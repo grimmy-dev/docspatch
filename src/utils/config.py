@@ -19,8 +19,9 @@ def load() -> AppConfig:
     """Load config from disk; returns defaults when file is absent.
 
     Caches the result — repeated calls skip disk I/O.
-    Raises RuntimeError on malformed TOML.
-    """
+
+    Raises:
+        RuntimeError: If the TOML file is malformed."""
     global cached_config
     if cached_config is not None:
         return cached_config
@@ -50,7 +51,14 @@ def save(cfg: AppConfig) -> None:
 
 
 def get(key: str, section: str = "defaults") -> object:
-    """Read one field from the config by section and key name."""
+    """Read one field from the config by section and key name.
+
+    Args:
+        key: The name of the key to retrieve.
+        section: The section of the config to read from. Defaults to "defaults".
+
+    Returns:
+        The value of the key, or None if the section or key is not found."""
     cfg = load()
     section_obj: object = getattr(cfg, section, None)
     if section_obj is None:
@@ -60,7 +68,12 @@ def get(key: str, section: str = "defaults") -> object:
 
 
 def get_api_key() -> tuple[str, str] | None:
-    """Return (provider_name, api_key) respecting the default provider first."""
+    """Return (provider_name, api_key) respecting the default provider first.
+
+    Assumes that the config file has been loaded.
+
+    Returns:
+        A tuple of (provider_name, api_key) or None if no API key is found."""
     cfg = load()
     keys = cfg.keys
 

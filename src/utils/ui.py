@@ -3,8 +3,7 @@
 import os
 import subprocess
 import sys
-from collections.abc import Callable, Generator
-from contextlib import contextmanager
+from collections.abc import Callable
 from functools import wraps
 from pathlib import Path
 
@@ -31,10 +30,15 @@ Q_STYLE = QStyle(
 def cli_error_handler[**P, R](func: Callable[P, R]) -> Callable[P, R]:
     """Decorator: translates domain exceptions into clean CLI messages.
 
-    Passes through typer.Exit/Abort and SystemExit unchanged.
-    KeyboardInterrupt → exit 130. Domain errors → exit 1.
-    Full traceback printed when --debug is in sys.argv.
-    """
+    Args:
+        func: The function to decorate.
+
+    Returns:
+        The decorated function.
+
+    Raises:
+        SystemExit: With code 130 for KeyboardInterrupt, code 1 for other exceptions.
+                    Prints full traceback if --debug is in sys.argv."""
 
     @wraps(func)
     def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
@@ -55,13 +59,23 @@ def cli_error_handler[**P, R](func: Callable[P, R]) -> Callable[P, R]:
 
 
 def short_path(filepath: Path | str) -> str:
-    """Return parent/filename for display (e.g. src/utils/ui.py → utils/ui.py)."""
+    """Return parent/filename for display (e.g. src/utils/ui.py → utils/ui.py).
+
+    Args:
+        filepath: The file path to shorten.
+
+    Returns:
+        The shortened file path string."""
     p = Path(filepath)
     return f"{p.parent.name}/{p.name}"
 
 
 def step(name: str, detail: str = "") -> None:
-    """Print a green checkmark step with optional dim detail."""
+    """Print a green checkmark step with optional dim detail.
+
+    Args:
+        name: The main step name.
+        detail: Optional detailed information for the step."""
     msg = f"[green]✓[/green] {name}"
     if detail:
         msg += f"  [dim]{detail}[/dim]"
@@ -69,25 +83,27 @@ def step(name: str, detail: str = "") -> None:
 
 
 def warn(msg: str) -> None:
-    """Print a yellow warning message."""
+    """Print a yellow warning message.
+
+    Args:
+        msg: The warning message to print."""
     console.print(f"[yellow]⚠[/yellow]  {msg}")
 
 
 def error(msg: str) -> None:
-    """Print a Red Error message."""
-    console.print(f"[red]⚠[/red]  {msg}")
+    """Print a red error message.
+
+    Args:
+        msg: The error message to print."""
+    console.print(f"[red]✗[/red]  {msg}")
 
 
 def info(msg: str) -> None:
-    """Print a dim informational message."""
+    """Print a dim informational message.
+
+    Args:
+        msg: The message to print."""
     console.print(f"[dim]{msg}[/dim]")
-
-
-@contextmanager
-def spinning(label: str) -> Generator[None]:
-    """Context manager that shows a Rich spinner while work is in progress."""
-    with console.status(f"[dim]{label}[/dim]", spinner="dots"):
-        yield
 
 
 def copy_to_clipboard(text: str) -> bool:
@@ -96,7 +112,12 @@ def copy_to_clipboard(text: str) -> bool:
     Linux: requires DISPLAY or WAYLAND_DISPLAY and xclip or xsel.
     macOS: uses pbcopy.
     Windows: uses ctypes directly — no external dependency.
-    """
+
+    Args:
+        text: The text to copy to the clipboard.
+
+    Returns:
+        True if the text was successfully copied, False otherwise."""
     if sys.platform == "linux":
         if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
             return False

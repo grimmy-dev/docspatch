@@ -1,13 +1,17 @@
 """Interactive UI handlers for LangGraph interrupts."""
 
 import asyncio
+import os
+import subprocess
+import tempfile
+from pathlib import Path
 
+import questionary
 from rich.panel import Panel
 from rich.table import Table
 
 from src.schemas.function import FunctionMetadata
 from src.schemas.graph_io import ReviewSessionResult, SizeCheckInterrupt
-from src.schemas.state import DocpatchState
 from src.utils.config import load
 from src.utils.log import get_logger
 from src.utils.ui import Q_STYLE, console, info, short_path, step, warn
@@ -25,28 +29,24 @@ async def handle_size_check_interrupt(iv: SizeCheckInterrupt) -> str:
 
     Returns:
         A string representing the chosen strategy."""
-    import questionary
-
     n = iv.get("file_count", 0)
     est = iv.get("token_estimate", 0)
     threshold = iv.get("threshold", 0)
 
-    console.print(f"""\n[bold yellow]Large repo:[/bold yellow] {n} functions (threshold: {threshold}, ~{est:,} tokens)\n""")
+    console.print(f"\n[bold yellow]Large codebase:[/bold yellow] {n} functions detected (threshold: {threshold}, ~{est:,} tokens)\n")
 
     choice: str | None = await questionary.select(
         "How to proceed?",
         choices=[
-            "auto   — process everything",
-            "smart  — undocumented only",
-            "pick   — choose files",
-            "quit   — exit",
+            questionary.Choice("auto  — document everything", value="auto"),
+            questionary.Choice("smart — undocumented functions only", value="smart"),
+            questionary.Choice("pick  — choose files interactively", value="pick"),
+            questionary.Choice("quit  — exit without changes", value="quit"),
         ],
         style=Q_STYLE,
     ).ask_async()
 
-    if choice is None:
-        return "quit"
-    return choice.split()[0]
+    return choice if choice is not None else "quit"
 
 
 async def handle_file_pick_interrupt(files: list[str]) -> list[str]:
@@ -57,8 +57,6 @@ async def handle_file_pick_interrupt(files: list[str]) -> list[str]:
 
     Returns:
         List of chosen file paths."""
-    import questionary
-
     chosen: list[str] | None = await questionary.checkbox(
         "Select files to document (use Space to select):", choices=files, style=Q_STYLE
     ).ask_async()
@@ -67,20 +65,22 @@ async def handle_file_pick_interrupt(files: list[str]) -> list[str]:
 
 async def interactive_model_switch() -> str:
     """Offer action after a rate-limit hit; returns 'wait', 'switch', or 'abort'."""
-    import questionary
-
     from src.cli.provider import configure_provider
     from src.utils.config import save
 
     action: str | None = await questionary.select(
         "Rate limit hit. What next?",
-        choices=["wait ~60s and retry", "switch model/provider", "abort"],
+        choices=[
+            questionary.Choice("wait ~60s and retry", value="wait"),
+            questionary.Choice("switch model/provider", value="switch"),
+            questionary.Choice("abort", value="abort"),
+        ],
         style=Q_STYLE,
     ).ask_async()
 
-    if action is None or "abort" in action:
+    if action is None or action == "abort":
         return "abort"
-    if "switch" in action:
+    if action == "switch":
         cfg = load()
         updated = await asyncio.to_thread(configure_provider, cfg)
         if updated:
@@ -109,8 +109,6 @@ async def run_review_session(docs: dict[str, str], catalog: dict[str, FunctionMe
 
     Returns:
         A ReviewSessionResult containing accepted changes, functions to rerun, and feedback."""
-    import questionary
-
     if not docs:
         return {"accepted": {}, "rerun": [], "feedback": {}}
 
@@ -136,7 +134,7 @@ async def run_review_session(docs: dict[str, str], catalog: dict[str, FunctionMe
     console.print()
 
     bulk: str | None = await questionary.select(
-        "How would you like to proceed?",
+        f"How would you like to proceed? ({len(docs)} docstring{'s' if len(docs) != 1 else ''})",
         choices=["Review one by one", "Accept all"],
         style=Q_STYLE,
     ).ask_async()
@@ -155,14 +153,15 @@ async def run_review_session(docs: dict[str, str], catalog: dict[str, FunctionMe
 
     info("Ctrl+C at any time to stop review and keep accepted so far.")
 
+    total = len(docs)
     try:
-        for fid, docstring in docs.items():
+        for idx, (fid, docstring) in enumerate(docs.items(), 1):
             fn = catalog[fid]
             content = f"[dim]{fn.signature}[/dim]\n\n{docstring or '[italic](no doc generated)[/italic]'}"
 
             panel = Panel(
                 content,
-                title=f"[bold indian_red]{fn.name}[/bold indian_red]",
+                title=f"[bold indian_red]{fn.name}[/bold indian_red]  [dim]{idx}/{total}[/dim]",
                 subtitle=f"[dim]{short_path(fn.file_path)}[/dim]",
                 border_style="indian_red",
                 expand=False,
@@ -232,56 +231,53 @@ async def run_review_session(docs: dict[str, str], catalog: dict[str, FunctionMe
     return {"accepted": accepted, "rerun": rerun, "feedback": feedback}
 
 
-def print_dry_run_breakdown(state: DocpatchState) -> None:
-    """Show per-file token breakdown for --dry-run."""
-    cfg = load()
-    style = state.style
-    output_per_fn = cfg.defaults.tokens_per_fn_compact if style == "compact" else cfg.defaults.tokens_per_fn_detailed
-    cost_per_m = 1.00
+async def handle_readme_review_interrupt(content: str, style: str = "compact") -> str | None:
+    """Show generated README preview; return accepted content or None to abort."""
+    preview = content[:2000] + "\n\n[…truncated…]" if len(content) > 2000 else content
+    token_var = "readme_tokens_compact" if style == "compact" else "readme_tokens_detailed"
+    console.print()
+    console.print(Panel(preview, title="[bold]Generated README[/bold]", border_style="cyan", expand=False))
+    console.print(f"\n[dim]Output capped by {token_var} — run dp config and edit {token_var} for longer output.[/dim]")
 
-    by_file: dict[str, list[str]] = {}
-    for fid in state.significant_functions:
-        fn = state.catalog[fid]
-        by_file.setdefault(str(fn.file_path), []).append(fid)
+    action: str | None = await questionary.select(
+        "README review:",
+        choices=["Accept", "Edit — open in $EDITOR", "View full", "Abort"],
+        style=Q_STYLE,
+    ).ask_async()
 
-    table = Table(show_header=True, box=None, padding=(0, 2))
-    table.add_column("file", style="dim")
-    table.add_column("fns", justify="right")
-    table.add_column("~tokens", justify="right", style="sandy_brown")
-    table.add_column("~cost", justify="right", style="dim")
+    if action is None or action == "Abort":
+        return None
+    if action == "Accept":
+        step("README accepted")
+        return content
+    if action == "View full":
+        console.print(Panel(content, title="[bold]Full README[/bold]", border_style="cyan"))
+        confirm: bool | None = await questionary.confirm("Accept this README?", default=True, style=Q_STYLE).ask_async()
+        return content if confirm else None
 
-    total_fns = 0
-    total_tokens = 0
-    for filepath, fids in sorted(by_file.items()):
-        n = len(fids)
-        t = sum((state.catalog[fid].end_line - state.catalog[fid].start_line + 1) * 10 + output_per_fn for fid in fids)
-        total_fns += n
-        total_tokens += t
-        table.add_row(short_path(filepath), str(n), f"{t:,}", f"${(t / 1_000_000) * cost_per_m:.4f}")
-
-    table.add_row("", "", "", "")
-    table.add_row(
-        "[bold]TOTAL[/bold]",
-        f"[bold]{total_fns}[/bold]",
-        f"[bold sandy_brown]{total_tokens:,}[/bold sandy_brown]",
-        f"[bold]${(total_tokens / 1_000_000) * cost_per_m:.3f}[/bold]",
-    )
-    console.print("\n[bold]Dry Run Estimation[/bold]")
-    console.print(table)
+    editor = os.environ.get("VISUAL") or os.environ.get("EDITOR") or "vi"
+    with tempfile.NamedTemporaryFile(suffix=".md", mode="w", delete=False, encoding="utf-8") as f:
+        f.write(content)
+        tmp_path = f.name
+    try:
+        await asyncio.to_thread(lambda: subprocess.run([editor, tmp_path]))
+        edited = await asyncio.to_thread(lambda: Path(tmp_path).read_text(encoding="utf-8"))
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+    return edited if edited.strip() else None
 
 
-def print_check_results(significant: list[str], catalog: dict[str, FunctionMetadata]) -> None:
-    """Display table of functions that need documentation."""
-    table = Table(show_header=True, box=None, padding=(0, 2))
-    table.add_column("File", style="dim")
-    table.add_column("Function", style="bold")
-    table.add_column("Reason", style="yellow")
+async def offer_readme_context_view(prompt: str) -> None:
+    """Offer to view the full prepared LLM context after a dry run."""
+    from src.utils.prompts import README_SYSTEM
 
-    for fid in significant:
-        fn = catalog[fid]
-        reason = "missing docstring" if not fn.docstring else "body changed"
-        table.add_row(short_path(fn.file_path), fn.name, reason)
-
-    console.print("\n[bold red]Undocumented or changed functions:[/bold red]")
-    console.print(table)
-    console.print(f"\n[red]{len(significant)} function(s) need documentation.[/red]")
+    view: bool | None = await questionary.confirm("View full prepared LLM context?", default=False, style=Q_STYLE).ask_async()
+    if view:
+        console.print(
+            Panel(
+                f"{README_SYSTEM}\n\n---\n\n{prompt}",
+                title="[bold]Full LLM Context[/bold]",
+                border_style="dim",
+                expand=False,
+            )
+        )
