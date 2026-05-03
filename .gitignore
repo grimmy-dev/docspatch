@@ -13,3 +13,4 @@ TASKS.md
 .mypy_cache
 .pytest_cache
 .ruff_cache
+CLAUDE.md
