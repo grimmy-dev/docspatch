@@ -1,7 +1,18 @@
 """Filesystem utilities."""
 
+import hashlib
 import os
 from pathlib import Path
+
+__all__ = ["atomic_write", "hash_file"]
+
+
+def hash_file(path: Path) -> str | None:
+    """Return SHA-256 hex digest of file contents; returns None on OSError."""
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
 
 
 def atomic_write(path: Path, content: str) -> None:

@@ -7,6 +7,7 @@ from pathlib import Path
 import libcst as cst
 from libcst.metadata import CodeRange, MetadataWrapper, PositionProvider
 
+from src.graph.nodes.docstring._cst_utils import is_docstring_stmt
 from src.schemas.function import FunctionMetadata, make_fn_id
 from src.schemas.graph_io import ParsedFunctionsUpdate
 from src.schemas.state import DocpatchState
@@ -26,16 +27,8 @@ class FunctionExtractor(cst.CSTVisitor):
         self.source_lines = source_lines
         self.catalog: dict[str, FunctionMetadata] = {}
 
-    def _is_docstring_stmt(self, node: cst.CSTNode) -> bool:
-        return (
-            isinstance(node, cst.SimpleStatementLine)
-            and len(node.body) == 1
-            and isinstance(node.body[0], cst.Expr)
-            and isinstance(node.body[0].value, (cst.SimpleString, cst.ConcatenatedString, cst.FormattedString))
-        )
-
     def visit_Module(self, node: cst.Module) -> bool | None:
-        has_docstring = node.body and self._is_docstring_stmt(node.body[0])
+        has_docstring = node.body and is_docstring_stmt(node.body[0])
         fn_id = make_fn_id(self.filepath, "__module__")
 
         if has_docstring:
