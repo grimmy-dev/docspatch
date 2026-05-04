@@ -6,11 +6,10 @@ from src.schemas.readme_io import ReadmeContextUpdate
 from src.schemas.readme_state import ReadmeState
 from src.utils.git import get_repo, get_root, resolve_target
 from src.utils.log import get_logger
-from src.utils.project_context import (
-    MAX_README_CHARS,
+from src.utils.project_format import MAX_README_CHARS, git_remote_to_https
+from src.utils.project_parse import (
     build_dir_tree,
     find_init_docstring,
-    git_remote_to_https,
     load_existing_readme,
     parse_pyproject,
     scan_public_api,
