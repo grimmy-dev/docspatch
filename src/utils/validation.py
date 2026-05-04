@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+__all__ = ["validate_state"]
+
 from git.exc import GitCommandError
 
 from src.schemas.state import DocpatchState

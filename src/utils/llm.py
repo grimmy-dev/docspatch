@@ -51,12 +51,12 @@ def is_cancelled() -> bool:
 def extract_text(content: str | list[str | dict[str, object]]) -> str:
     """Pull plain text from a string or list of content blocks.
 
-        Args:
-            content: The LLM response content, which can be a string or a list of mixed content blocks.
+    Args:
+        content: The LLM response content, which can be a string or a list of mixed content blocks.
 
-        Returns:
-            A single string containing all extracted text.
-        """
+    Returns:
+        A single string containing all extracted text.
+    """
     if isinstance(content, str):
         return content
     parts: list[str] = []
@@ -71,12 +71,12 @@ def extract_text(content: str | list[str | dict[str, object]]) -> str:
 def extract_tokens(response: BaseMessage) -> int:
     """Extract the total token count from a LangChain `BaseMessage` object.
 
-        Args:
-            response: The `BaseMessage` instance from an LLM response.
+    Args:
+        response: The `BaseMessage` instance from an LLM response.
 
-        Returns:
-            The total number of tokens used, or 0 if token information is unavailable.
-        """
+    Returns:
+        The total number of tokens used, or 0 if token information is unavailable.
+    """
     usage = getattr(response, "usage_metadata", None) or {}
     if usage:
         if "total_tokens" in usage:
@@ -149,13 +149,13 @@ FACTORIES: dict[str, Callable[[str, str], BaseChatModel]] = {
 def _max_tokens_kwarg(llm: BaseChatModel, n: int) -> dict[str, int]:
     """Return the provider-specific keyword argument for capping output tokens.
 
-        Args:
-            llm: The `BaseChatModel` instance.
-            n: The maximum number of tokens to allow.
+    Args:
+        llm: The `BaseChatModel` instance.
+        n: The maximum number of tokens to allow.
 
-        Returns:
-            A dictionary with the appropriate keyword argument and value for the given LLM.
-        """
+    Returns:
+        A dictionary with the appropriate keyword argument and value for the given LLM.
+    """
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -169,15 +169,15 @@ def _max_tokens_kwarg(llm: BaseChatModel, n: int) -> dict[str, int]:
 def get_llm(model_key: str) -> BaseChatModel:
     """Return a LangChain chat model instance for the given key.
 
-        Args:
-            model_key: The specific model identifier (e.g., "gpt-4o").
+    Args:
+        model_key: The specific model identifier (e.g., "gpt-4o").
 
-        Returns:
-            A LangChain `BaseChatModel` instance.
+    Returns:
+        A LangChain `BaseChatModel` instance.
 
-        Raises:
-            RuntimeError: If no API key is configured, the provider is unknown, or the specified API key is missing.
-        """
+    Raises:
+        RuntimeError: If no API key is configured, the provider is unknown, or the specified API key is missing.
+    """
     cfg = load()
     provider_key = cfg.defaults.provider_key
 
@@ -208,22 +208,24 @@ async def acall_llm[T: BaseModel](
 ) -> tuple[T | None, str, int]:
     """Make an asynchronous call to an LLM, supporting structured or raw text output.
 
-        Args:
-            model_key: Identifier for the LLM to use (e.g., "gpt-4o").
-            system: The system prompt content.
-            prompt: The user prompt content.
-            output_model: Pydantic model for structured output, if desired.
-            max_tokens: Maximum number of tokens for the LLM's output.
+    Args:
+        model_key: Identifier for the LLM to use (e.g., "gpt-4o").
+        system: The system prompt content.
+        prompt: The user prompt content.
+        output_model: Pydantic model for structured output, if desired.
+        max_tokens: Maximum number of tokens for the LLM's output.
 
-        Returns:
-            A tuple containing:
-            - parsed: The Pydantic model instance if `output_model` was provided and parsing succeeded, otherwise `None`.
-            - raw_text: The raw string output from the LLM if `output_model` was `None` or structured output failed, otherwise an empty string.
-            - token_count: The total number of tokens used for the request.
+    Returns:
+        A tuple containing:
+        - parsed: The Pydantic model instance if `output_model` was provided and parsing
+          succeeded, otherwise `None`.
+        - raw_text: The raw string output from the LLM if `output_model` was `None` or
+          structured output failed, otherwise an empty string.
+        - token_count: The total number of tokens used for the request.
 
-        Raises:
-            LLMError: If an error occurs during the LLM call.
-        """
+    Raises:
+        LLMError: If an error occurs during the LLM call.
+    """
     if is_cancelled():
         return None, "", 0
 

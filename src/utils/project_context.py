@@ -270,7 +270,9 @@ def _fmt_symbol(name: str, node: _NamedNode) -> str:
 def _extract_public_symbols(path: Path) -> list[str]:
     """Return public symbols from a Python file as 'name — summary' strings.
 
-    Respects __all__ if defined. Otherwise, includes top-level functions, classes, and constants not starting with an underscore. Symbols are formatted with their first line of docstring if available."""
+    Respects __all__ if defined. Otherwise, includes top-level functions, classes, and constants
+    not starting with an underscore. Symbols are formatted with their first line of docstring
+    if available."""
     try:
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source)

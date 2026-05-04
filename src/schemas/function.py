@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+__all__ = ["FunctionMetadata", "make_fn_id"]
+
 
 def make_fn_id(filepath: Path, name: str) -> str:
     """Generate a unique identifier for a function across the repository.
