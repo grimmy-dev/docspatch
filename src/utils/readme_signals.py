@@ -1,17 +1,24 @@
 """Context signals for README generation — git history, test coverage, diff detection."""
 
+from __future__ import annotations
+
 import ast
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 from src.utils.log import get_logger
 
+if TYPE_CHECKING:
+    import git
+
 logger = get_logger(__name__)
 
+__all__ = ["extract_readme_headings", "get_diff_files", "get_git_signals", "get_test_coverage_summary"]
 
-def get_git_signals(repo: Any) -> str:  # repo: git.Repo — avoid hard gitpython import at module level
+
+def get_git_signals(repo: git.Repo) -> str:
     """Return a compact git history and activity summary. Empty string on any failure."""
     try:
         count = int(repo.git.rev_list("--count", "HEAD").strip())
@@ -52,7 +59,7 @@ def get_test_coverage_summary(root: Path) -> str:
     return f"Test suite covers: {parts}"
 
 
-def get_diff_files(repo: Any, target: Path) -> list[str]:  # repo: git.Repo
+def get_diff_files(repo: git.Repo, target: Path) -> list[str]:
     """Return Python files under target that differ from HEAD. Empty list on failure."""
     try:
         output = repo.git.diff("HEAD", "--name-only", "--", str(target))

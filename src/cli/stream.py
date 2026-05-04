@@ -32,6 +32,7 @@ async def stream_graph(
     status: Status,
     node_messages: dict[str, str],
     dry_skip: frozenset[str] = frozenset(),
+    # Any: LangGraph node_data shape varies per pipeline — no shared contract to express
     on_node: Callable[[str, Any], bool] | None = None,
 ) -> tuple[bool, Any]:  # (was_interrupted, interrupt_value)
     """Core stream loop shared by all pipelines.

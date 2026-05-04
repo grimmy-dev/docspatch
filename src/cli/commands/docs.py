@@ -41,7 +41,7 @@ async def _docs_async(
     resume: bool,
 ) -> None:
     """Run the docstring generation pipeline."""
-    from src.cli.runner import make_thread, run_docstring
+    from src.cli.runners import make_thread, run_docstring
     from src.graph.graphs.docs_graph import build
     from src.utils.checkpointer import get_checkpointer, get_memory_saver
 
@@ -74,7 +74,7 @@ async def _docs_async(
 
 def _run_check(path: Path, since: str | None, update: bool) -> None:
     """Run the CI check — exit 1 if undocumented/changed functions exist."""
-    from src.cli.runner import run_check
+    from src.cli.runners import run_check
 
     resolved = Path(path).resolve()
     cfg = load()

@@ -36,7 +36,7 @@ async def _readme_async(
     remarks: str | None,
 ) -> None:
     """Run the README generation pipeline."""
-    from src.cli.runner import run_readme
+    from src.cli.runners import run_readme
     from src.graph.graphs.readme_graph import build
     from src.schemas.readme_state import ReadmeState
 
