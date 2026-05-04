@@ -82,7 +82,7 @@ async def run_docstring(graph: CompiledDocpatchGraph, state: DocpatchState, conf
 
     if not state.dry_run:
         try:
-            from src.utils.llm import get_llm
+            from src.utils._llm_providers import get_llm
 
             get_llm(load().defaults.model)
         except RuntimeError as exc:

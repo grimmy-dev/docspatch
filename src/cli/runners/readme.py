@@ -32,7 +32,7 @@ async def run_readme(graph: CompiledReadmeGraph, state: ReadmeState, config: Gra
     """Async orchestration of the README pipeline."""
     if not state.dry_run:
         try:
-            from src.utils.llm import get_llm
+            from src.utils._llm_providers import get_llm
 
             get_llm(load().defaults.review_model)
         except RuntimeError as exc:
