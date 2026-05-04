@@ -49,16 +49,12 @@ def build_prompt(
     batch_files = {catalog[fid].file_path for fid in batch_ids}
     batch_names = {catalog[fid].name for fid in batch_ids}
 
-    same_file = [
-        f"  {fn.signature}"
-        for fn in catalog.values()
-        if fn.name not in batch_names and fn.file_path in batch_files and fn.kind == "function"
-    ]
-    cross_file = [
-        f"  {fn.signature}"
-        for fn in catalog.values()
-        if fn.name not in batch_names and fn.file_path not in batch_files and fn.kind == "function"
-    ]
+    same_file: list[str] = []
+    cross_file: list[str] = []
+    for fn in catalog.values():
+        if fn.name in batch_names or fn.kind != "function":
+            continue
+        (same_file if fn.file_path in batch_files else cross_file).append(f"  {fn.signature}")
     context = "\n".join((same_file + cross_file)[:20])
 
     by_file: dict[Path, list[FunctionMetadata]] = {}
@@ -81,17 +77,29 @@ def build_prompt(
     )
 
 
+def _parse_json_array(text: str) -> list[dict[str, Any]] | None:
+    """Try to extract a JSON array from text; returns None on any parse failure."""
+    try:
+        parsed = cast(list[dict[str, Any]], json.loads(text))
+        if isinstance(parsed, list):
+            return parsed
+    except (json.JSONDecodeError, TypeError) as _:
+        pass
+    match = re.search(r"\[.*\]", text, re.DOTALL)
+    if not match:
+        return None
+    try:
+        return cast(list[dict[str, Any]], json.loads(match.group()))
+    except (json.JSONDecodeError, TypeError) as _:
+        return None
+
+
 def parse_response_fallback(text: str, batch_names: set[str]) -> list[DocstringOutput]:
     """Parse JSON docstrings from raw LLM text when structured output is unavailable."""
     text = re.sub(r"```(?:json)?\s*", "", text).strip()
-    match = re.search(r"\[.*\]", text, re.DOTALL)
-    if not match:
+    raw = _parse_json_array(text)
+    if raw is None:
         return []
-    try:
-        raw = cast(list[dict[str, Any]], json.loads(match.group()))
-    except (json.JSONDecodeError, TypeError) as _:
-        return []
-
     return [
         DocstringOutput(name=item.get("name", ""), docstring=item.get("docstring", "").strip())
         for item in raw

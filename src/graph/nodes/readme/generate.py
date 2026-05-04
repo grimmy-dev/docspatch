@@ -1,5 +1,6 @@
 """readme_llm node — generates or updates README content via LLM."""
 
+import re
 from pathlib import Path
 
 from src.schemas.readme_io import ReadmeLLMUpdate
@@ -46,7 +47,8 @@ def build_readme_prompt(state: ReadmeState) -> str:
     if state.remote_url:
         lines.append(f"Repository: {state.remote_url}")
     if state.dependencies:
-        lines.append(f"Dependencies: {', '.join(state.dependencies[:20])}")
+        dep_names = [re.split(r"[><=!;@ \[]", d)[0] for d in state.dependencies[:20]]
+        lines.append(f"Dependencies: {', '.join(dep_names)}")
     if state.cli_scripts:
         scripts = ", ".join(f"{k} = {v}" for k, v in state.cli_scripts.items())
         lines.append(f"CLI scripts: {scripts}")
