@@ -7,7 +7,7 @@ from src.schemas.readme_state import ReadmeState
 from src.utils.config import load
 from src.utils.llm import acall_llm, is_cancelled
 from src.utils.log import get_logger
-from src.utils.project_context import MAX_README_CHARS, detect_badges
+from src.utils.project_format import MAX_README_CHARS, detect_badges
 from src.utils.prompts import README_STYLE, README_SYSTEM
 from src.utils.readme_signals import extract_readme_headings
 
