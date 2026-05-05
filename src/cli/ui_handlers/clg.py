@@ -49,16 +49,25 @@ async def handle_clg_review_interrupt(content: str) -> str | None:
 
 
 async def offer_clg_context_view(prompt: str) -> None:
-    """Offer to view the full assembled LLM context after a dry run."""
+    """Offer to view or copy the full assembled LLM context after a dry run."""
     from src.utils.prompts import CHANGELOG_SYSTEM
+    from src.utils.ui import copy_to_clipboard
 
-    view: bool | None = await questionary.confirm("View full prepared LLM context?", default=False, style=Q_STYLE).ask_async()
-    if view:
-        console.print(
-            Panel(
-                f"{CHANGELOG_SYSTEM}\n\n---\n\n{prompt}",
-                title="[bold]Full LLM Context[/bold]",
-                border_style="dim",
-                expand=False,
-            )
-        )
+    action: str | None = await questionary.select(
+        "LLM context:",
+        choices=["View full", "Copy to clipboard", "Skip"],
+        default="Skip",
+        style=Q_STYLE,
+    ).ask_async()
+
+    if action is None or action == "Skip":
+        return
+
+    full_context = f"{CHANGELOG_SYSTEM}\n\n---\n\n{prompt}"
+
+    if action in ("View full", "Copy to clipboard"):
+        if action == "Copy to clipboard":
+            ok = copy_to_clipboard(full_context)
+            console.print("[green]Copied to clipboard.[/green]" if ok else "[yellow]Clipboard unavailable.[/yellow]")
+        else:
+            console.print(Panel(full_context, title="[bold]Full LLM Context[/bold]", border_style="dim", expand=False))
