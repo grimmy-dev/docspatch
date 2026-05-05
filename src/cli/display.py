@@ -4,11 +4,12 @@ from pathlib import Path
 
 from rich.table import Table
 
+from src.schemas.changelog_state import ChangelogState
 from src.schemas.function import FunctionMetadata
 from src.schemas.readme_state import ReadmeState
 from src.schemas.state import DocpatchState
 from src.utils.config import load
-from src.utils.prompts import README_SYSTEM
+from src.utils.prompts import CHANGELOG_SYSTEM, README_SYSTEM
 from src.utils.ui import console, short_path
 
 
@@ -115,3 +116,37 @@ def print_readme_dry_run(state: ReadmeState, prompt: str) -> None:
     console.print("\n[bold]Dry Run — dp readme[/bold]")
     console.print(table)
     console.print(f"\n[dim]Tune output length: dp config and edit {token_var}[/dim]")
+
+
+def print_clg_dry_run(state: ChangelogState, prompt: str) -> None:
+    """Show context summary and token estimate for dp clg --dry-run."""
+    cfg = load()
+    input_tokens = (len(CHANGELOG_SYSTEM) + len(prompt)) // 4
+    output_tokens = cfg.defaults.changelog_tokens
+    cost_estimate = ((input_tokens + output_tokens) / 1_000_000) * 15.0
+
+    table = Table(show_header=False, box=None, padding=(0, 2))
+    table.add_column("Key", style="bold")
+    table.add_column("Value", style="sandy_brown")
+
+    repo_name = Path(state.repo_path or ".").name
+    table.add_row("Repository", repo_name)
+    table.add_row("Version", state.version)
+    if state.from_ref:
+        end = state.to_ref or "HEAD"
+        table.add_row("Range", f"{state.from_ref}..{end}")
+    else:
+        table.add_row("Range", "uncommitted working tree")
+    table.add_row("Commits", str(len(state.commits)))
+    table.add_row("Diff chars", f"{len(state.diff):,}" + (" (truncated)" if state.diff_was_truncated else ""))
+    table.add_row("Breaking changes", "yes" if state.has_breaking_changes else "no")
+    table.add_row("Initial commit", "yes" if state.is_initial_commit else "no")
+    table.add_row("Style", state.style)
+    table.add_row("", "")
+    table.add_row("~Input tokens", f"{input_tokens:,}")
+    table.add_row("~Output cap (changelog_tokens)", f"{output_tokens:,}")
+    table.add_row("~Estimated cost", f"${cost_estimate:.4f}")
+
+    console.print("\n[bold]Dry Run — dp clg[/bold]")
+    console.print(table)
+    console.print("\n[dim]Tune output length: dp config and edit changelog_tokens[/dim]")
