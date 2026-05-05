@@ -4,13 +4,12 @@ from pathlib import Path
 
 from src.schemas.readme_io import ReadmeContextUpdate
 from src.schemas.readme_state import ReadmeState
-from src.utils.git import get_repo, get_root
+from src.utils.git import get_repo, get_root, resolve_target
 from src.utils.log import get_logger
-from src.utils.project_context import (
-    MAX_README_CHARS,
+from src.utils.project_format import MAX_README_CHARS, git_remote_to_https
+from src.utils.project_parse import (
     build_dir_tree,
     find_init_docstring,
-    git_remote_to_https,
     load_existing_readme,
     parse_pyproject,
     scan_public_api,
@@ -24,7 +23,7 @@ def readme_context(state: ReadmeState) -> ReadmeContextUpdate:
     """Collect project metadata, directory tree, git remote, and existing README."""
     repo = get_repo(state.repo_path)
     root = get_root(repo)
-    target = Path(state.target_path).resolve() if state.target_path else root
+    target = resolve_target(state.target_path, root)
 
     ctx = parse_pyproject(root)
 

@@ -1,31 +1,18 @@
 """writer node — safe source-file rewriter using LibCST."""
 
-import hashlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import libcst as cst
 
+from src.graph.nodes.docstring._cst_utils import is_docstring_stmt
 from src.schemas.graph_io import RerunDocsUpdate
 from src.schemas.state import DocpatchState
 from src.utils.cache import set_file_and_function_hashes
-from src.utils.fs import atomic_write
+from src.utils.fs import atomic_write, hash_file
 from src.utils.log import get_logger
 
 logger = get_logger(__name__)
-
-
-def is_docstring_stmt(node: cst.CSTNode) -> bool:
-    """Return True when node is a bare string expression (docstring)."""
-    return (
-        isinstance(node, cst.SimpleStatementLine)
-        and len(node.body) == 1
-        and isinstance(node.body[0], cst.Expr)
-        and isinstance(
-            node.body[0].value,
-            (cst.SimpleString, cst.ConcatenatedString, cst.FormattedString),
-        )
-    )
 
 
 def make_docstring_node(text: str, indent: str = "    ") -> cst.SimpleStatementLine:
@@ -137,11 +124,11 @@ def cache_update(state: DocpatchState) -> RerunDocsUpdate:
         by_file.setdefault(fn.file_path, []).append(fid)
 
     for filepath, fids in by_file.items():
-        try:
-            file_hash = hashlib.sha256(filepath.read_bytes()).hexdigest()
-            hashes = {state.catalog[fid].name: state.catalog[fid].body_hash for fid in fids}
-            set_file_and_function_hashes(filepath, file_hash, hashes)
-        except OSError as exc:
-            logger.warning("cache_update failed for %s: %s", filepath, exc)
+        file_hash = hash_file(filepath)
+        if file_hash is None:
+            logger.warning("cache_update: could not read %s, skipping cache entry", filepath)
+            continue
+        hashes = {state.catalog[fid].name: state.catalog[fid].body_hash for fid in fids}
+        set_file_and_function_hashes(filepath, file_hash, hashes)
 
     return {"generated_docs": {}, "token_actual": 0}

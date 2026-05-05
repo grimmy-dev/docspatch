@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel
 
+__all__ = ["BatchDocstringOutput", "DocstringOutput"]
+
 
 class DocstringOutput(BaseModel):
     """Single function name + generated docstring."""

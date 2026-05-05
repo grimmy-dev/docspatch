@@ -1,5 +1,16 @@
 """LLM prompt string constants — no logic, no functions."""
 
+__all__ = [
+    "CHANGELOG_STYLE",
+    "CHANGELOG_SYSTEM",
+    "DOCSTRING_STYLE",
+    "DOCSTRING_SYSTEM",
+    "README_STYLE",
+    "README_SYSTEM",
+    "REVIEW_STYLE",
+    "REVIEW_SYSTEM",
+]
+
 DOCSTRING_SYSTEM: dict[str, str] = {
     "compact": (
         "You are a technical documentation expert. Write Google-style Python docstrings.\n"

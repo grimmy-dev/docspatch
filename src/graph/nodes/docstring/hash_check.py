@@ -1,22 +1,14 @@
 """hash_check nodes — filter files and functions by comparing against cache."""
 
-import hashlib
 from pathlib import Path
 
 from src.schemas.graph_io import ParsedFunctionsUpdate, ScannerUpdate
 from src.schemas.state import DocpatchState
 from src.utils.cache import get_file_hash, get_function_hash
+from src.utils.fs import hash_file
 from src.utils.log import get_logger
 
 logger = get_logger(__name__)
-
-
-def hash_file(path: Path) -> str | None:
-    """Return SHA-256 hex digest of file contents; returns None on OSError."""
-    try:
-        return hashlib.sha256(path.read_bytes()).hexdigest()
-    except OSError:
-        return None
 
 
 def file_hash_check(state: DocpatchState) -> ScannerUpdate:

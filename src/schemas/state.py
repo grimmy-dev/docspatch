@@ -1,6 +1,10 @@
+"""Shared LangGraph state and reducers for the docstring pipeline."""
+
 import operator
 from pathlib import Path
 from typing import Annotated
+
+__all__ = ["DocpatchState", "merge_dicts"]
 
 from pydantic import BaseModel, Field
 

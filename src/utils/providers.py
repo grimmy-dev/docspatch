@@ -1,4 +1,8 @@
+"""Provider catalogue mapping provider names to available models and API key fields."""
+
 from src.schemas.config import ProviderConfig
+
+__all__ = ["CUSTOM", "PROVIDERS"]
 
 PROVIDERS: dict[str, ProviderConfig] = {
     "Google Gemini": ProviderConfig(

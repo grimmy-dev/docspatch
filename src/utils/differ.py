@@ -5,6 +5,8 @@ Core layer — no I/O, no side effects.
 
 import re
 
+__all__ = ["has_meaningful_changes", "is_significant", "normalize"]
+
 from src.schemas.function import FunctionMetadata
 
 # Full-line comments only — avoids corrupting URLs inside strings

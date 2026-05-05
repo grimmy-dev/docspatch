@@ -4,7 +4,7 @@ from pathlib import Path
 
 from src.schemas.graph_io import ScannerUpdate
 from src.schemas.state import DocpatchState
-from src.utils.git import get_repo, get_root
+from src.utils.git import get_repo, get_root, resolve_target
 from src.utils.ignore import is_ignored, load_ignore
 from src.utils.log import get_logger
 
@@ -25,7 +25,7 @@ def scanner(state: DocpatchState) -> ScannerUpdate:
     """
     repo = get_repo(state.repo_path)
     root = get_root(repo)
-    target = (Path(state.target_path).resolve() if state.target_path else root).resolve()
+    target = resolve_target(state.target_path, root)
 
     ignore_spec = load_ignore(root)
 

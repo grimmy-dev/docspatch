@@ -12,10 +12,31 @@ from langgraph.graph.state import CompiledStateGraph, StateGraph
 from src.schemas.function import FunctionMetadata
 from src.schemas.state import DocpatchState
 
+__all__ = [
+    "BatchDocsUpdate",
+    "BatcherUpdate",
+    "Checkpointer",
+    "CollectBatchesUpdate",
+    "CompiledDocpatchGraph",
+    "DocpatchGraph",
+    "FeedbackUpdate",
+    "FilePickInterrupt",
+    "GraphConfig",
+    "ParsedFunctionsUpdate",
+    "PreviewUpdate",
+    "RerunDocsUpdate",
+    "ReviewInterrupt",
+    "ReviewSessionResult",
+    "ScannerUpdate",
+    "SignificantFunctionsUpdate",
+    "SizeCheckInterrupt",
+    "SizeCheckUpdate",
+]
+
+# Any is required by LangGraph's CompiledStateGraph type parameters — not avoidable.
 type Checkpointer = BaseCheckpointSaver[Any] | AsyncSqliteSaver | MemorySaver
 type DocpatchGraph = StateGraph[DocpatchState]
 type CompiledDocpatchGraph = CompiledStateGraph[DocpatchState, Any, Any, Any]
-type StreamPayload = dict[str, dict[str, object] | list[object]]
 type GraphConfig = RunnableConfig
 
 

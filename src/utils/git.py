@@ -6,6 +6,8 @@ import git
 
 from src.utils.log import get_logger
 
+__all__ = ["get_repo", "get_root", "is_git_repo", "resolve_target"]
+
 logger = get_logger(__name__)
 
 
@@ -32,3 +34,11 @@ def get_root(repo: git.Repo | None = None) -> Path:
     """Return the working-tree root of the repository."""
     r = repo or get_repo()
     return Path(str(r.working_tree_dir))
+
+
+def resolve_target(path: Path | None, root: Path) -> Path:
+    """Resolve a nullable target path against the repo root.
+
+    Returns the resolved path when provided, or root when path is None.
+    Prevents relative CLI inputs from escaping the repository boundary."""
+    return Path(path).resolve() if path is not None else root

@@ -1,5 +1,7 @@
 """Domain exceptions and LLM error classifier."""
 
+__all__ = ["NetworkError", "RateLimitError", "classify_llm_error"]
+
 
 class RateLimitError(RuntimeError):
     """Raised when an LLM provider returns a rate-limit or quota response."""
@@ -20,8 +22,8 @@ def classify_llm_error(exc: Exception) -> RuntimeError:
         exc: The raw exception raised by the LLM.
 
     Returns:
-    A user-friendly RuntimeError that captures the essence of the original
-    exception."""
+        A user-friendly RuntimeError that captures the essence of the original
+        exception."""
     parts = [str(exc)]
     cause = exc.__cause__ or exc.__context__
     if cause:

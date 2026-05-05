@@ -7,6 +7,8 @@ from typing import Annotated, Any
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 
+__all__ = ["CompiledReadmeGraph", "ReadmeState"]
+
 
 class ReadmeState(BaseModel):
     """State threaded through every node in the readme pipeline."""
@@ -69,4 +71,5 @@ class ReadmeState(BaseModel):
         return self.output_path if self.output_path else target / "README.md"
 
 
+# Any is required by LangGraph's CompiledStateGraph type parameters — not avoidable.
 type CompiledReadmeGraph = CompiledStateGraph[ReadmeState, Any, Any, Any]

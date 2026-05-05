@@ -1,11 +1,11 @@
 """State validation — runs before any pipeline work starts."""
 
-from pathlib import Path
+__all__ = ["validate_state"]
 
 from git.exc import GitCommandError
 
 from src.schemas.state import DocpatchState
-from src.utils.git import get_repo, get_root
+from src.utils.git import get_repo, get_root, resolve_target
 
 
 def validate_state(state: DocpatchState) -> None:
@@ -18,7 +18,7 @@ def validate_state(state: DocpatchState) -> None:
     root = get_root(repo)
 
     if state.target_path is not None:
-        target = Path(state.target_path).resolve()
+        target = resolve_target(state.target_path, root)
         try:
             target.relative_to(root)
         except ValueError as exc:

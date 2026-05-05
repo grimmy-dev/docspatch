@@ -29,7 +29,6 @@ from src.schemas.graph_io import (
     SignificantFunctionsUpdate,
     SizeCheckInterrupt,
     SizeCheckUpdate,
-    StreamPayload,
 )
 from src.schemas.state import DocpatchState
 
@@ -58,5 +57,4 @@ __all__ = [
     "SignificantFunctionsUpdate",
     "SizeCheckInterrupt",
     "SizeCheckUpdate",
-    "StreamPayload",
 ]
