@@ -47,8 +47,8 @@ class ChangelogState(BaseModel):
     def resolved_output_path(self) -> Path:
         """Return write destination for the changelog file.
 
-        Defaults to CHANGELOG.md in the current directory."""
-        return self.output_path or Path("CHANGELOG.md")
+        Defaults to CHANGELOG.md under repo_path (or cwd if repo_path is unset)."""
+        return self.output_path if self.output_path else (self.repo_path or Path(".")) / "CHANGELOG.md"
 
 
 # Any is required by LangGraph's CompiledStateGraph type parameters — not avoidable.

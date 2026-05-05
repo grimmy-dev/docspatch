@@ -63,6 +63,7 @@ def make_serde() -> JsonPlusSerializer:
             ("src.schemas.function", "FunctionMetadata"),
             ("src.schemas.state", "DocpatchState"),
             ("src.schemas.readme_state", "ReadmeState"),
+            ("src.schemas.changelog_state", "ChangelogState"),
         ]
     )
 
