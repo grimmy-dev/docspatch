@@ -22,6 +22,8 @@ class AppDefaults(BaseModel):
     prune_after_days: int = 30
     readme_tokens_compact: int = 2000
     readme_tokens_detailed: int = 5000
+    changelog_diff_cap: int = 8000
+    changelog_tokens: int = 1500
 
 
 class AppKeys(BaseModel):
