@@ -27,6 +27,8 @@ class ChangelogState(BaseModel):
     diff: str = ""
     commits: list[str] = Field(default_factory=list)
     version: str = "Unreleased"
+    project_name: str = ""
+    project_description: str | None = None
     has_breaking_changes: bool = False
     is_initial_commit: bool = False
     diff_was_truncated: bool = False

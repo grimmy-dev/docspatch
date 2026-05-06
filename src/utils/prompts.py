@@ -42,6 +42,11 @@ CHANGELOG_SYSTEM: str = (
     "unless they directly affect the public API or user behaviour.\n"
     "- Each bullet point is one logical change written from the user's perspective.\n"
     "- Omit sections that have no changes.\n"
+    "- Use the project name and description (if provided) to frame changes in terms the user cares about.\n"
+    "- If the diff contains only internal refactors with no API or behaviour change visible to users, "
+    "write a single 'Changed' bullet noting the internal cleanup — do not expand it.\n"
+    "- Begin your output with `## [version] - YYYY-MM-DD` as the first line "
+    "(use the Version field provided; use today's date or omit the date if unknown).\n"
     "- OUTPUT: Return only the changelog entry Markdown. No preamble, no code fences."
 )
 

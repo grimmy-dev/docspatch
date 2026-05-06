@@ -17,6 +17,10 @@ def build_clg_prompt(state: ChangelogState) -> str:
     style_note = CHANGELOG_STYLE.get(state.style, CHANGELOG_STYLE["compact"])
     lines: list[str] = [f"Style: {style_note}", ""]
 
+    if state.project_name:
+        lines.append(f"Project: {state.project_name}")
+    if state.project_description:
+        lines.append(f"Description: {state.project_description}")
     lines.append(f"Version: {state.version}")
 
     if state.from_ref:

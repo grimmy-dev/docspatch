@@ -17,6 +17,8 @@ class ChangelogContextUpdate(TypedDict, total=False):
     diff: str
     commits: list[str]
     version: str
+    project_name: str
+    project_description: str | None
     has_breaking_changes: bool
     is_initial_commit: bool
     diff_was_truncated: bool
