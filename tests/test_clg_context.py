@@ -22,6 +22,8 @@ def _run(state: ChangelogState, **overrides: object) -> dict:  # type: ignore[ty
         "is_initial_commit": MagicMock(return_value=False),
         "get_git_diff": MagicMock(return_value="@@ some diff @@"),
         "get_commit_log": MagicMock(return_value=["abc1234 feat: add thing"]),
+        "filter_diff_noise": MagicMock(return_value={"content": "@@ some diff @@", "dropped_hunks": 0, "drop_reasons": []}),
+        "score_and_filter_commits": MagicMock(side_effect=lambda c: c),
         "truncate_diff": MagicMock(return_value=("@@ some diff @@", False)),
         "detect_breaking_changes": MagicMock(return_value=False),
         "get_initial_commit_context": MagicMock(return_value=""),

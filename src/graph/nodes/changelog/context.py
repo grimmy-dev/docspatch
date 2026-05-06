@@ -10,6 +10,7 @@ from src.utils.changelog_git import (
     is_initial_commit,
 )
 from src.utils.config import load
+from src.utils.diff_semantics import filter_diff_noise, score_and_filter_commits
 from src.utils.git import get_repo, get_root
 from src.utils.log import get_logger
 from src.utils.project_parse import parse_pyproject
@@ -38,8 +39,10 @@ def clg_context(state: ChangelogState) -> ChangelogContextUpdate:
 
     cfg = load()
     raw_diff = get_git_diff(repo, state.from_ref, state.to_ref)
-    diff, was_truncated = truncate_diff(raw_diff, cfg.defaults.changelog_diff_cap)
-    commits = get_commit_log(repo, state.from_ref, state.to_ref)
+    filtered = filter_diff_noise(raw_diff)
+    logger.debug("diff filter: dropped %d hunks — %s", filtered["dropped_hunks"], filtered["drop_reasons"])
+    diff, was_truncated = truncate_diff(filtered["content"], cfg.defaults.changelog_diff_cap)
+    commits = score_and_filter_commits(get_commit_log(repo, state.from_ref, state.to_ref))
 
     return {
         "diff": diff,
