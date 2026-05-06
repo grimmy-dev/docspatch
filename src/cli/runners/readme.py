@@ -8,7 +8,7 @@ from langgraph.types import Command
 
 from src.cli.runners._common import iv_type
 from src.cli.stream import RetryState, handle_stream_error, stream_graph
-from src.cli.ui_handlers import handle_readme_review_interrupt, offer_readme_context_view
+from src.cli.ui_handlers import handle_readme_review_interrupt, offer_context_view
 from src.schemas.graph_io import GraphConfig
 from src.schemas.readme_state import CompiledReadmeGraph, ReadmeState
 from src.utils.config import load
@@ -89,14 +89,13 @@ async def run_readme(graph: CompiledReadmeGraph, state: ReadmeState, config: Gra
         return
 
     if final_state.dry_run:
+        from src.cli.display import print_readme_dry_run
         from src.graph.nodes.readme.generate import build_readme_prompt
+        from src.utils.prompts import README_SYSTEM
 
         prompt = build_readme_prompt(final_state)
-
-        from src.cli.display import print_readme_dry_run
-
         print_readme_dry_run(final_state, prompt)
-        await offer_readme_context_view(prompt)
+        await offer_context_view(f"{README_SYSTEM}\n\n---\n\n{prompt}")
     else:
         for w in final_state.warnings:
             warn(w)
