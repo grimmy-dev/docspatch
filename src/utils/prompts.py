@@ -33,15 +33,24 @@ DOCSTRING_STYLE: dict[str, str] = {
 }
 
 CHANGELOG_SYSTEM: str = (
-    "You are a technical writer. Given a git diff and commit log, "
-    "generate a Keep a Changelog formatted entry under the correct section headers "
-    "(Added, Changed, Deprecated, Removed, Fixed, Security). "
-    "Use plain markdown bullet points. Be concise and precise."
+    "You are a technical writer generating changelog entries for end users, not for developers.\n"
+    "Given a git diff and commit log, write a Keep a Changelog entry using these section headers only: "
+    "Added, Changed, Deprecated, Removed, Fixed, Security.\n\n"
+    "RULES:\n"
+    "- Describe user-facing impact, not implementation details.\n"
+    "- DO NOT describe line-by-line code changes, variable renames, or internal refactors "
+    "unless they directly affect the public API or user behaviour.\n"
+    "- Each bullet point is one logical change written from the user's perspective.\n"
+    "- Omit sections that have no changes.\n"
+    "- OUTPUT: Return only the changelog entry Markdown. No preamble, no code fences."
 )
 
 CHANGELOG_STYLE: dict[str, str] = {
-    "compact": "Bullet points only. One line per change. No prose.",
-    "detailed": "Bullet points with brief explanations of why each change was made.",
+    "compact": "Bullet points only. One line per change. No rationale.",
+    "detailed": (
+        "Bullet points with a brief explanation of why each change was made. "
+        "If breaking changes are present, add a '### Breaking Changes' section first."
+    ),
 }
 
 README_SYSTEM: str = (

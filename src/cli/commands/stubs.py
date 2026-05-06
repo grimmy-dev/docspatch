@@ -6,16 +6,7 @@ import typer
 
 from src.utils.ui import info
 
-__all__ = ["clg", "init", "review"]
-
-
-def clg(
-    from_ref: str = typer.Option("HEAD~1", "--from", help="Start ref"),
-    to_ref: str = typer.Option("HEAD", "--to", help="End ref"),
-) -> None:
-    """Generate a changelog."""
-    del from_ref, to_ref
-    info("coming soon")
+__all__ = ["init", "review"]
 
 
 def review(

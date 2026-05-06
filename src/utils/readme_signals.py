@@ -34,29 +34,35 @@ def get_git_signals(repo: git.Repo) -> str:
         return ""
 
 
+_TEST_NAMES_PER_MODULE = 6
+
+
 def get_test_coverage_summary(root: Path) -> str:
-    """Return semantic test coverage summary grouped by module. Empty string when no tests found."""
+    """Return test function names grouped by module as plain-english behaviour signals.
+
+    Caps at _TEST_NAMES_PER_MODULE names per module. Uses rglob to find nested test dirs.
+    Empty string when no tests found."""
     tests_dir = root / "tests"
     if not tests_dir.exists():
         return ""
-    modules: dict[str, int] = {}
-    for test_file in sorted(tests_dir.glob("test_*.py")):
+    modules: dict[str, list[str]] = {}
+    for test_file in sorted(tests_dir.rglob("test_*.py")):
         try:
             tree = ast.parse(test_file.read_text(encoding="utf-8"))
         except (OSError, SyntaxError) as _:
             continue
-        count = sum(
-            1
+        names = [
+            node.name.removeprefix("test_").replace("_", " ")
             for node in ast.iter_child_nodes(tree)
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_")
-        )
-        if count:
-            module_name = test_file.stem.replace("test_", "").replace("_", " ").title()
-            modules[module_name] = count
+        ]
+        if names:
+            module_name = test_file.stem.removeprefix("test_").replace("_", " ").title()
+            modules[module_name] = names[:_TEST_NAMES_PER_MODULE]
     if not modules:
         return ""
-    parts = ", ".join(f"{mod} ({n})" for mod, n in modules.items())
-    return f"Test suite covers: {parts}"
+    parts = "; ".join(f"{mod}: {', '.join(names)}" for mod, names in modules.items())
+    return f"Tests — {parts}"
 
 
 def get_diff_files(repo: git.Repo, target: Path) -> list[str]:

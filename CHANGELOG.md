@@ -4,9 +4,23 @@ All notable changes are documented here. Format follows [Keep a Changelog](https
 
 ---
 
-## [0.1.1] - 2026-05-03
+## [0.1.0] - 2026-05-03
 
 ### Added
+
+**Changelog generation pipeline**
+- `dp clg` — generate a Keep a Changelog entry from your git diff and commit log
+- `dp clg --dry-run` — preview LLM context and token estimate without writing
+- `dp clg --from <ref>` / `--to <ref>` — scope the diff to a specific commit range
+- `dp clg --output <path>` — write to a custom path instead of `CHANGELOG.md`
+- `dp clg --style compact|detailed` — bullet-only or explained entries with breaking-change callouts
+- Initial-commit detection — first run generates an "Initial Release" overview instead of a diff-based entry
+- Interactive review before writing — accept, edit in `$EDITOR`, copy to clipboard, view full, or abort
+
+**Clipboard support**
+- "Copy to clipboard" added to review prompts for both `dp readme` and `dp clg`
+- "Copy to clipboard" added to dry-run LLM context view — copy the full system + user prompt for inspection
+- Wayland (`wl-copy`), X11 (`xclip`/`xsel`), macOS (`pbcopy`), and Windows (ctypes) supported
 
 **README generation pipeline**
 - `dp readme` — generate or update `README.md` using project context and git signals

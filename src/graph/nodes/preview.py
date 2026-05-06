@@ -1,7 +1,9 @@
-"""Interrupt-based preview nodes for docs and readme pipelines."""
+"""Interrupt-based preview nodes for docs, readme, and changelog pipelines."""
 
 from langgraph.types import interrupt
 
+from src.schemas.changelog_io import ChangelogPreviewUpdate, ChangelogReviewInterrupt
+from src.schemas.changelog_state import ChangelogState
 from src.schemas.graph_io import PreviewUpdate, ReviewInterrupt, ReviewSessionResult
 from src.schemas.readme_io import ReadmePreviewUpdate, ReadmeReviewInterrupt
 from src.schemas.readme_state import ReadmeState
@@ -42,3 +44,12 @@ def readme_preview_all(state: ReadmeState) -> ReadmePreviewUpdate:
 
     result: str | None = interrupt(ReadmeReviewInterrupt(type="readme_review", content=state.generated_readme))
     return {"accepted_readme": result}
+
+
+def clg_preview_all(state: ChangelogState) -> ChangelogPreviewUpdate:
+    """Interrupt the graph so the CLI can present the generated changelog entry for review."""
+    if not state.generated_entry:
+        return {"accepted_entry": None}
+
+    result: str | None = interrupt(ChangelogReviewInterrupt(type="clg_review", content=state.generated_entry))
+    return {"accepted_entry": result}

@@ -8,6 +8,7 @@ from src.utils.project_parse import (
     find_init_docstring,
     load_existing_readme,
     parse_pyproject,
+    scan_public_api,
 )
 
 # ---------------------------------------------------------------------------
@@ -131,3 +132,45 @@ def test_load_existing_readme_truncates_long_content(tmp_path: Path) -> None:
     assert truncated is True
     assert content is not None
     assert len(content) == 100
+
+
+# ---------------------------------------------------------------------------
+# scan_public_api
+# ---------------------------------------------------------------------------
+
+
+def test_scan_public_api_includes_docstring_summary(tmp_path: Path) -> None:
+    (tmp_path / "utils.py").write_text('def parse(text: str) -> str:\n    """Parse and return cleaned text."""\n    ...\n')
+    api = scan_public_api(tmp_path)
+    assert any("parse — Parse and return cleaned text." in s for s in api.get("utils.py", []))
+
+
+def test_scan_public_api_handles_no_docstring(tmp_path: Path) -> None:
+    (tmp_path / "utils.py").write_text("def parse(text: str) -> str: ...\n")
+    assert scan_public_api(tmp_path).get("utils.py") == ["parse"]
+
+
+def test_scan_public_api_respects_all(tmp_path: Path) -> None:
+    src = '__all__ = ["public_fn"]\ndef public_fn(): ...\ndef excluded(): ...\n'
+    (tmp_path / "mod.py").write_text(src)
+    symbols = scan_public_api(tmp_path).get("mod.py", [])
+    assert any(s.startswith("public_fn") for s in symbols)
+    assert all("excluded" not in s for s in symbols)
+
+
+def test_scan_public_api_skips_noise_dirs(tmp_path: Path) -> None:
+    noise = tmp_path / "__pycache__"
+    noise.mkdir()
+    (noise / "cached.py").write_text("def fn(): ...\n")
+    (tmp_path / "real.py").write_text("def fn(): ...\n")
+    api = scan_public_api(tmp_path)
+    assert not any("__pycache__" in k for k in api)
+    assert any("real.py" in k for k in api)
+
+
+def test_scan_public_api_skips_private_files(tmp_path: Path) -> None:
+    (tmp_path / "_internal.py").write_text("def secret(): ...\n")
+    (tmp_path / "public.py").write_text("def exposed(): ...\n")
+    api = scan_public_api(tmp_path)
+    assert "_internal.py" not in api
+    assert "public.py" in api

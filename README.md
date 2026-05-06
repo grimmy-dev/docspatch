@@ -48,6 +48,8 @@ dp docs            # document undocumented or changed functions
 dp docs --dry-run  # preview scope and estimated cost, no writes
 dp readme          # generate or update README.md
 dp readme --dry-run  # preview what the LLM would receive, no writes
+dp clg             # generate a changelog entry from your git diff
+dp clg --dry-run   # preview what the LLM would receive, no writes
 ```
 
 ---
@@ -77,6 +79,17 @@ dp readme --dry-run  # preview what the LLM would receive, no writes
 | `dp readme --style compact\|detailed` | Override style (compact = minimal, detailed = badges + full sections) |
 | `dp readme --remarks "<note>"` | Pass extra instructions to the LLM |
 
+### Changelog
+
+| Command | Description |
+|---|---|
+| `dp clg` | Generate a Keep a Changelog entry from your git diff |
+| `dp clg --dry-run` | Preview LLM context and token estimate, no writes |
+| `dp clg --from <ref>` | Start of the commit range (default: last commit) |
+| `dp clg --to <ref>` | End of the commit range (default: HEAD) |
+| `dp clg --output <path>` | Write to a custom path instead of `CHANGELOG.md` |
+| `dp clg --style compact\|detailed` | Bullet-only or explained entries with breaking-change callouts |
+
 ### Setup and config
 
 | Command | Description |
@@ -102,6 +115,8 @@ Config lives at `~/.docspatch/config.toml`. Edit directly or via `dp config`.
 | `large_threshold` | `50` | Function count above which docspatch prompts before running |
 | `readme_tokens_compact` | — | Token budget for compact README generation |
 | `readme_tokens_detailed` | — | Token budget for detailed README generation |
+| `changelog_diff_cap` | `8000` | Max diff chars sent to the LLM — larger diffs are truncated |
+| `changelog_tokens` | `1500` | Token budget for changelog entry generation |
 
 ---
 
@@ -196,6 +211,13 @@ Checkpoints are stored in `~/.docspatch/checkpoints.db`.
 3. Sends context to the LLM with your existing README as reference
 4. Presents the generated README for review before writing
 5. Preserves `<!-- dp-keep -->` blocks from the original
+
+### Changelog
+
+1. Reads the git diff and commit log for the target range
+2. Detects breaking changes and flags initial-commit runs
+3. Sends diff + commits to the LLM — generates a Keep a Changelog entry
+4. Presents the entry for review before writing to `CHANGELOG.md`
 
 ---
 
