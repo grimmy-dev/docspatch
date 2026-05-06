@@ -63,6 +63,15 @@ def build_readme_prompt(state: ReadmeState) -> str:
         api_lines = [f"  {mod}: {', '.join(syms[:symbol_cap])}" for mod, syms in list(state.public_api.items())[:module_cap]]
         lines.append("\nPublic API:\n" + "\n".join(api_lines))
 
+    if state.usage_examples:
+        cap = 8 if state.style == "compact" else 20
+        lines.append("\nUsage examples (from tests):")
+        for ex in state.usage_examples[:cap]:
+            entry = f"  {ex['fn_name']}: {ex['call']}"
+            if ex["context"]:
+                entry += f"  # {ex['context']}"
+            lines.append(entry)
+
     if state.style == "detailed":
         badges = detect_badges(state.remote_url, state.project_name or None, state.project_version, state.license_id)
         if badges:

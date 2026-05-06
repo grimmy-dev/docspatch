@@ -7,6 +7,8 @@ from typing import Annotated, Any
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 
+from src.utils.usage_signals import UsageExample
+
 __all__ = ["CompiledReadmeGraph", "ReadmeState"]
 
 
@@ -45,6 +47,7 @@ class ReadmeState(BaseModel):
     # Enrichment signals — populated by readme_context
     git_signals: str = ""
     test_coverage: str = ""
+    usage_examples: list[UsageExample] = Field(default_factory=list)
 
     # Pipeline state
     generated_readme: str = ""

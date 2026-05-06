@@ -15,6 +15,7 @@ from src.utils.project_parse import (
     scan_public_api,
 )
 from src.utils.readme_signals import get_git_signals, get_test_coverage_summary
+from src.utils.usage_signals import extract_usage_examples
 
 logger = get_logger(__name__)
 
@@ -57,6 +58,7 @@ def readme_context(state: ReadmeState) -> ReadmeContextUpdate:
         "public_api": scan_public_api(target),
         "git_signals": get_git_signals(repo),
         "test_coverage": get_test_coverage_summary(root),
+        "usage_examples": extract_usage_examples(root),
         "repo_root": root,
         "warnings": warnings,
     }

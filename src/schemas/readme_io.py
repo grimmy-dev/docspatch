@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TypedDict
 
+from src.utils.usage_signals import UsageExample
+
 __all__ = [
     "ProjectContext",
     "ReadmeContextUpdate",
@@ -44,6 +46,7 @@ class ReadmeContextUpdate(TypedDict, total=False):
     public_api: dict[str, list[str]]
     git_signals: str
     test_coverage: str
+    usage_examples: list[UsageExample]
     repo_root: Path | None
     warnings: list[str]
 
