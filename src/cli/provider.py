@@ -5,7 +5,7 @@ from typing import cast
 import questionary
 
 from src.schemas.config import AppConfig, AppDefaults, ProviderConfig
-from src.utils.providers import CUSTOM, PROVIDERS
+from src.utils.llm.catalogue import CUSTOM, PROVIDERS
 from src.utils.ui import Q_STYLE, console
 
 

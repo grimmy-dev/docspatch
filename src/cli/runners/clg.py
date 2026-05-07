@@ -56,7 +56,7 @@ async def run_clg(graph: CompiledChangelogGraph, state: ChangelogState, config: 
     if final_state.dry_run:
         from src.cli.display import print_clg_dry_run
         from src.graph.nodes.changelog.prompts import build_clg_prompt
-        from src.utils.prompts import CHANGELOG_SYSTEM
+        from src.utils.llm.prompts import CHANGELOG_SYSTEM
 
         prompt = build_clg_prompt(final_state)
         print_clg_dry_run(final_state, prompt)

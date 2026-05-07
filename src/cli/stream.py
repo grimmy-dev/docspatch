@@ -5,15 +5,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from rich.status import Status
-
 import typer
 from rich.status import Status
 
 from src.cli.ui_handlers import interactive_model_switch
 from src.schemas.graph_io import GraphConfig
 from src.utils.errors import NetworkError, RateLimitError, classify_llm_error
-from src.utils.llm import request_cancel
+from src.utils.llm.caller import request_cancel
 from src.utils.ui import step, warn
 
 MAX_RATE_LIMIT_RETRIES = 10

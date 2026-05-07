@@ -1,13 +1,12 @@
 """readme_llm node — generates or updates README content via LLM."""
 
+from src.graph.nodes.readme.prompts import build_readme_prompt
 from src.schemas.readme_io import ReadmeLLMUpdate
 from src.schemas.readme_state import ReadmeState
 from src.utils.config import load
-from src.utils.llm import acall_llm, is_cancelled
+from src.utils.llm.caller import acall_llm, is_cancelled
+from src.utils.llm.prompts import README_SYSTEM
 from src.utils.log import get_logger
-from src.utils.prompts import README_SYSTEM
-
-from src.graph.nodes.readme.prompts import build_readme_prompt
 
 logger = get_logger(__name__)
 

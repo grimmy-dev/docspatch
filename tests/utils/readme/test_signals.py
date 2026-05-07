@@ -3,8 +3,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from src.utils.readme_analysis import extract_readme_headings
-from src.utils.readme_io import get_diff_files, get_git_signals, get_test_coverage_summary
+from src.utils.readme.analysis import extract_readme_headings
+from src.utils.readme.signals import get_diff_files, get_git_signals, get_test_coverage_summary
 
 # ---------------------------------------------------------------------------
 # get_test_coverage_summary

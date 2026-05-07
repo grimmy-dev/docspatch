@@ -1,6 +1,6 @@
 """Tests for changelog_format — pure functions, no mocking required."""
 
-from src.utils.diff_semantics import detect_breaking_changes, truncate_diff
+from src.utils.diff.semantics import detect_breaking_changes, truncate_diff
 
 # ---------------------------------------------------------------------------
 # truncate_diff

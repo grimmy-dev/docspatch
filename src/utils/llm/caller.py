@@ -9,8 +9,8 @@ from typing import Any, cast
 from langchain_core.messages import BaseMessage
 from pydantic import BaseModel
 
-from src.utils._llm_providers import _max_tokens_kwarg, get_llm
 from src.utils.errors import classify_llm_error
+from src.utils.llm.factory import _max_tokens_kwarg, get_llm
 from src.utils.log import get_logger
 
 __all__ = ["acall_llm", "get_llm", "is_cancelled", "request_cancel", "reset_cancel"]

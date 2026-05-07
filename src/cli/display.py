@@ -9,7 +9,7 @@ from src.schemas.function import FunctionMetadata
 from src.schemas.readme_state import ReadmeState
 from src.schemas.state import DocpatchState
 from src.utils.config import load
-from src.utils.prompts import CHANGELOG_SYSTEM, README_SYSTEM
+from src.utils.llm.prompts import CHANGELOG_SYSTEM, README_SYSTEM
 from src.utils.ui import console, short_path
 
 

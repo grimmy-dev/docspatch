@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TypedDict
 
-from src.utils.usage_signals import UsageExample
+from src.utils.project.usage import UsageExample
 
 __all__ = [
     "ProjectContext",

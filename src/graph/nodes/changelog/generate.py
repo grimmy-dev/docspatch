@@ -1,13 +1,12 @@
 """clg_llm node — generates changelog entry via LLM."""
 
+from src.graph.nodes.changelog.prompts import build_clg_prompt
 from src.schemas.changelog_io import ChangelogLLMUpdate
 from src.schemas.changelog_state import ChangelogState
 from src.utils.config import load
-from src.utils.llm import acall_llm, is_cancelled
+from src.utils.llm.caller import acall_llm, is_cancelled
+from src.utils.llm.prompts import CHANGELOG_SYSTEM
 from src.utils.log import get_logger
-from src.utils.prompts import CHANGELOG_SYSTEM
-
-from src.graph.nodes.changelog.prompts import build_clg_prompt
 
 __all__ = ["clg_llm"]
 

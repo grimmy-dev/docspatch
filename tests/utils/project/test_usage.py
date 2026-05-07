@@ -2,9 +2,7 @@
 
 from pathlib import Path
 
-import pytest
-
-from src.utils.usage_signals import extract_usage_examples
+from src.utils.project.usage import extract_usage_examples
 
 
 def _write(path: Path, text: str) -> None:

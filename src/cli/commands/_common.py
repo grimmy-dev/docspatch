@@ -5,7 +5,7 @@ from pathlib import Path
 import typer
 
 from src.utils.config import get_api_key
-from src.utils.git import is_git_repo
+from src.utils.git.repo import is_git_repo
 
 __all__ = ["command_preamble"]
 

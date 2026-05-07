@@ -10,7 +10,7 @@ from rich.status import Status
 
 from src.cli.stream import RetryState, handle_stream_error, stream_graph
 from src.schemas.graph_io import GraphConfig
-from src.utils.llm import is_cancelled, reset_cancel
+from src.utils.llm.caller import is_cancelled, reset_cancel
 from src.utils.ui import console, error, info
 
 __all__ = ["run_pipeline"]
@@ -37,7 +37,7 @@ async def run_pipeline(
     """
     if preflight_model is not None:
         try:
-            from src.utils._llm_providers import get_llm
+            from src.utils.llm.factory import get_llm
 
             get_llm(preflight_model)
         except RuntimeError as exc:

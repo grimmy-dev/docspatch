@@ -1,6 +1,6 @@
 """Tests for project_format — pure functions, no I/O."""
 
-from src.utils.project_format import detect_badges, git_remote_to_https, preserve_sections
+from src.utils.project.format import detect_badges, git_remote_to_https, preserve_sections
 
 # ---------------------------------------------------------------------------
 # git_remote_to_https

@@ -7,7 +7,7 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import Field
 
 from src.schemas.pipeline_state import PipelineState
-from src.utils.usage_signals import UsageExample
+from src.utils.project.usage import UsageExample
 
 __all__ = ["CompiledReadmeGraph", "ReadmeState"]
 

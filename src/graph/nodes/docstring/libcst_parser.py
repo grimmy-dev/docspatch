@@ -10,7 +10,7 @@ from src.graph.nodes.docstring._cst_utils import is_docstring_stmt
 from src.schemas.function import FunctionMetadata, make_fn_id
 from src.schemas.graph_io import ParsedFunctionsUpdate
 from src.schemas.state import DocpatchState
-from src.utils.differ import normalize
+from src.utils.diff.differ import normalize
 from src.utils.fs import hash_content
 from src.utils.log import get_logger
 

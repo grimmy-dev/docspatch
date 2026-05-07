@@ -5,7 +5,7 @@ __all__ = ["validate_state"]
 from git.exc import GitCommandError
 
 from src.schemas.state import DocpatchState
-from src.utils.git import get_repo, get_root, resolve_target
+from src.utils.git.repo import get_repo, get_root, resolve_target
 
 
 def validate_state(state: DocpatchState) -> None:

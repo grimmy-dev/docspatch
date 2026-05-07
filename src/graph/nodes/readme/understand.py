@@ -7,9 +7,9 @@ from src.schemas.readme_io import ReadmeUnderstandUpdate
 from src.schemas.readme_state import ReadmeState
 from src.utils.config import load
 from src.utils.fs import hash_content
-from src.utils.llm import acall_llm, is_cancelled
+from src.utils.llm.caller import acall_llm, is_cancelled
+from src.utils.llm.prompts import README_UNDERSTAND_SYSTEM
 from src.utils.log import get_logger
-from src.utils.prompts import README_UNDERSTAND_SYSTEM
 
 logger = get_logger(__name__)
 

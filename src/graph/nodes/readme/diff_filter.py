@@ -4,10 +4,10 @@ from pathlib import Path
 
 from src.schemas.readme_io import ReadmeDiffFilterUpdate
 from src.schemas.readme_state import ReadmeState
-from src.utils.diff_semantics import filter_diff_noise
-from src.utils.git import get_repo
+from src.utils.diff.semantics import filter_diff_noise
+from src.utils.git.repo import get_repo
 from src.utils.log import get_logger
-from src.utils.readme_io import get_diff_files
+from src.utils.readme.signals import get_diff_files
 
 logger = get_logger(__name__)
 

@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.utils.differ import is_significant, normalize
+from src.utils.diff.differ import is_significant, normalize
 
 
 def test_normalize_strips_full_line_comments() -> None:

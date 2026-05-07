@@ -4,7 +4,7 @@ from src.schemas.readme_io import ReadmeWriterUpdate
 from src.schemas.readme_state import ReadmeState
 from src.utils.fs import atomic_write
 from src.utils.log import get_logger
-from src.utils.project_format import preserve_sections
+from src.utils.project.format import preserve_sections
 
 logger = get_logger(__name__)
 

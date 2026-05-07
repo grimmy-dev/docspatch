@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from src.utils.fs import hash_content
-from src.utils.git import get_root
+from src.utils.git.repo import get_root
 
 __all__ = ["make_thread", "thread_id"]
 

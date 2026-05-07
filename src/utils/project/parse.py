@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from src.schemas.readme_io import ProjectContext
 from src.utils.log import get_logger
-from src.utils.project_format import MAX_README_CHARS, NOISE_DIRS, compact_readme
+from src.utils.project.format import MAX_README_CHARS, NOISE_DIRS, compact_readme
 
 __all__ = [
     "build_dir_tree",

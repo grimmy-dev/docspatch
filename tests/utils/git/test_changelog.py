@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from src.utils.changelog_git import (
+from src.utils.git.changelog import (
     get_commit_log,
     get_git_diff,
     get_initial_commit_context,

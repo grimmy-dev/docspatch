@@ -1,6 +1,6 @@
 """Tests for diff_semantics — pure functions, no mocking needed."""
 
-from src.utils.diff_semantics import (
+from src.utils.diff.semantics import (
     filter_diff_noise,
     score_and_filter_commits,
 )

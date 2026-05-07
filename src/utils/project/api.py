@@ -6,7 +6,7 @@ Shell layer — reads Python files from disk to extract public symbol names and 
 import ast
 from pathlib import Path
 
-from src.utils.project_format import NOISE_DIRS
+from src.utils.project.format import NOISE_DIRS
 
 __all__ = ["scan_public_api"]
 

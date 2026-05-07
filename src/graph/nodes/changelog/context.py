@@ -2,17 +2,17 @@
 
 from src.schemas.changelog_io import ChangelogContextUpdate
 from src.schemas.changelog_state import ChangelogState
-from src.utils.changelog_git import (
+from src.utils.config import load
+from src.utils.diff.semantics import detect_breaking_changes, filter_diff_noise, score_and_filter_commits, truncate_diff
+from src.utils.git.changelog import (
     get_commit_log,
     get_git_diff,
     get_initial_commit_context,
     is_initial_commit,
 )
-from src.utils.config import load
-from src.utils.diff_semantics import detect_breaking_changes, filter_diff_noise, score_and_filter_commits, truncate_diff
-from src.utils.git import get_repo, get_root
+from src.utils.git.repo import get_repo, get_root
 from src.utils.log import get_logger
-from src.utils.project_parse import parse_pyproject
+from src.utils.project.parse import parse_pyproject
 
 logger = get_logger(__name__)
 

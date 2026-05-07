@@ -12,9 +12,9 @@ from src.schemas.graph_io import BatchDocsUpdate, CollectBatchesUpdate, RerunDoc
 from src.schemas.llm_outputs import BatchDocstringOutput, DocstringOutput
 from src.schemas.state import DocpatchState
 from src.utils.config import load
-from src.utils.llm import acall_llm, is_cancelled
+from src.utils.llm.caller import acall_llm, is_cancelled
+from src.utils.llm.prompts import DOCSTRING_SYSTEM
 from src.utils.log import get_logger
-from src.utils.prompts import DOCSTRING_SYSTEM
 
 __all__ = ["collect_batches", "docwriter_rerun", "docwriter_single"]
 
@@ -131,7 +131,9 @@ async def _process_rerun_batch(
     batch_names = {fn.name}
     parsed, raw_text, tokens = await acall_llm(model_key, system, prompt, output_model=BatchDocstringOutput)
     items = (
-        [i for i in parsed.items if i.name == fn.name and i.docstring.strip()] if parsed else _parse_response_fallback(raw_text, batch_names)
+        [i for i in parsed.items if i.name == fn.name and i.docstring.strip()]
+        if parsed
+        else _parse_response_fallback(raw_text, batch_names)
     )
     return fid, items[0].docstring if items else None, tokens
 

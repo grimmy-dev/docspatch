@@ -7,7 +7,7 @@ file_slices parameter so this module has no disk dependencies.
 from pathlib import Path
 
 from src.schemas.function import FunctionMetadata
-from src.utils.prompts import DOCSTRING_STYLE
+from src.utils.llm.prompts import DOCSTRING_STYLE
 
 __all__ = ["build_prompt"]
 

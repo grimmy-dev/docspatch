@@ -4,7 +4,7 @@ from pathlib import Path
 
 from src.schemas.graph_io import ScannerUpdate
 from src.schemas.state import DocpatchState
-from src.utils.git import get_repo, get_root, resolve_target
+from src.utils.git.repo import get_repo, get_root, resolve_target
 from src.utils.ignore import is_ignored, load_ignore
 from src.utils.log import get_logger
 

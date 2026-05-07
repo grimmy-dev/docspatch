@@ -1,7 +1,7 @@
 """Pure prompt-building for the changelog pipeline."""
 
 from src.schemas.changelog_state import ChangelogState
-from src.utils.prompts import CHANGELOG_STYLE
+from src.utils.llm.prompts import CHANGELOG_STYLE
 
 __all__ = ["build_clg_prompt"]
 
