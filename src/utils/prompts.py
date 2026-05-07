@@ -7,6 +7,7 @@ __all__ = [
     "DOCSTRING_SYSTEM",
     "README_STYLE",
     "README_SYSTEM",
+    "README_UNDERSTAND_SYSTEM",
     "REVIEW_STYLE",
     "REVIEW_SYSTEM",
 ]
@@ -85,6 +86,12 @@ README_SYSTEM: str = (
     "  If 'Changed files' are listed → update ONLY sections affected by those files; copy all others verbatim.\n"
     "  If no changed files are listed → rewrite the entire README.\n\n"
     "OUTPUT: Return only the final Markdown. No preamble, no explanations, no surrounding code fences."
+)
+
+README_UNDERSTAND_SYSTEM: str = (
+    "You are a code analyst. Read the provided module code and describe its purpose in one sentence. "
+    "Be specific to this codebase — no generic descriptions. "
+    "Focus on what this module does for the user and how it fits in the system."
 )
 
 README_STYLE: dict[str, str] = {

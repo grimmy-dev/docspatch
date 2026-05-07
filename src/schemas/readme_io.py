@@ -13,6 +13,7 @@ __all__ = [
     "ReadmeLLMUpdate",
     "ReadmePreviewUpdate",
     "ReadmeReviewInterrupt",
+    "ReadmeUnderstandUpdate",
     "ReadmeWriterUpdate",
 ]
 
@@ -75,6 +76,15 @@ class ReadmeWriterUpdate(TypedDict, total=False):
     """Returned by readme_writer."""
 
     warnings: list[str]
+
+
+class ReadmeUnderstandUpdate(TypedDict, total=False):
+    """Returned by readme_understand."""
+
+    project_understanding: str | None
+    module_summaries: dict[str, str]
+    module_hashes: dict[str, str]
+    token_actual: int
 
 
 class ReadmeReviewInterrupt(TypedDict):

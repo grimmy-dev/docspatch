@@ -49,6 +49,11 @@ class ReadmeState(BaseModel):
     test_coverage: str = ""
     usage_examples: list[UsageExample] = Field(default_factory=list)
 
+    # Understanding cache — populated by readme_understand
+    project_understanding: str | None = None
+    module_summaries: dict[str, str] = Field(default_factory=dict)
+    module_hashes: dict[str, str] = Field(default_factory=dict)
+
     # Pipeline state
     generated_readme: str = ""
     accepted_readme: str | None = None
