@@ -64,17 +64,17 @@ def test_select_modules_prioritises_main() -> None:
 
 
 def test_hash_content_is_deterministic() -> None:
-    from src.graph.nodes.readme.understand import _hash_content
+    from src.utils.fs import hash_content
 
     content = "def foo(): pass\ndef bar(): pass"
-    assert _hash_content(content) == _hash_content(content)
-    assert len(_hash_content(content)) == 16
+    assert hash_content(content) == hash_content(content)
+    assert len(hash_content(content)) == 16
 
 
 def test_hash_content_differs_on_change() -> None:
-    from src.graph.nodes.readme.understand import _hash_content
+    from src.utils.fs import hash_content
 
-    assert _hash_content("def foo(): pass") != _hash_content("def bar(): pass")
+    assert hash_content("def foo(): pass") != hash_content("def bar(): pass")
 
 
 def test_build_understanding_string_contains_all_modules() -> None:
@@ -88,12 +88,13 @@ def test_build_understanding_string_contains_all_modules() -> None:
 
 
 def test_partition_modules_splits_correctly() -> None:
-    from src.graph.nodes.readme.understand import _hash_content, _partition_modules
+    from src.graph.nodes.readme.understand import _partition_modules
+    from src.utils.fs import hash_content
 
     content_a = "def foo(): pass\ndef bar(): pass"
     content_b = "def baz(): pass"
     contents = {"mod_a.py": content_a, "mod_b.py": content_b}
-    cached_hashes = {"mod_a.py": _hash_content(content_a)}
+    cached_hashes = {"mod_a.py": hash_content(content_a)}
 
     fresh, cached = _partition_modules(list(contents), cached_hashes, contents)
 

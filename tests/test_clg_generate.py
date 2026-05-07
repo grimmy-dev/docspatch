@@ -1,6 +1,6 @@
 """Tests for build_clg_prompt — pure function, no mocking required."""
 
-from src.graph.nodes.changelog.generate import build_clg_prompt
+from src.graph.nodes.changelog.prompts import build_clg_prompt
 from src.schemas.changelog_state import ChangelogState
 
 

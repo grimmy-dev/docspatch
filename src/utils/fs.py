@@ -4,7 +4,7 @@ import hashlib
 import os
 from pathlib import Path
 
-__all__ = ["atomic_write", "hash_file"]
+__all__ = ["atomic_write", "hash_content", "hash_file"]
 
 
 def hash_file(path: Path) -> str | None:
@@ -13,6 +13,11 @@ def hash_file(path: Path) -> str | None:
         return hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError:
         return None
+
+
+def hash_content(text: str) -> str:
+    """Return a 16-char SHA-256 fingerprint of a string."""
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
 def atomic_write(path: Path, content: str) -> None:

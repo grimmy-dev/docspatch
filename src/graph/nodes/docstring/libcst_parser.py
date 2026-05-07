@@ -1,6 +1,5 @@
 """libcst_parser node — extracts function and module-level metadata using LibCST."""
 
-import hashlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -12,6 +11,7 @@ from src.schemas.function import FunctionMetadata, make_fn_id
 from src.schemas.graph_io import ParsedFunctionsUpdate
 from src.schemas.state import DocpatchState
 from src.utils.differ import normalize
+from src.utils.fs import hash_content
 from src.utils.log import get_logger
 
 logger = get_logger(__name__)
@@ -35,7 +35,7 @@ class FunctionExtractor(cst.CSTVisitor):
             docstring_text = node.get_docstring()
             pos = self.get_metadata(PositionProvider, node.body[0])
             end_line = pos.end.line if isinstance(pos, CodeRange) else 1
-            body_hash = hashlib.sha256((docstring_text or "").encode()).hexdigest()[:16]
+            body_hash = hash_content(docstring_text or "")
             self.catalog[fn_id] = FunctionMetadata(
                 kind="module",
                 name="__module__",
@@ -55,7 +55,7 @@ class FunctionExtractor(cst.CSTVisitor):
                 start_line=1,
                 end_line=1,
                 signature=f"# {self.filepath.name}",
-                body_hash=hashlib.sha256(b"").hexdigest()[:16],
+                body_hash=hash_content(""),
             )
         return None  # continue visiting children
 
@@ -79,7 +79,7 @@ class FunctionExtractor(cst.CSTVisitor):
         if signature.endswith(":"):
             signature = signature[:-1]
 
-        body_hash = hashlib.sha256(normalize(src_slice).encode()).hexdigest()[:16]
+        body_hash = hash_content(normalize(src_slice))
         docstring = node.get_docstring()
 
         fn_id = make_fn_id(self.filepath, node.name.value)

@@ -14,12 +14,12 @@ __all__ = ["ChangelogState", "CompiledChangelogGraph"]
 class ChangelogState(PipelineState):
     """State threaded through every node in the changelog pipeline."""
 
-    # Configuration
+    # Configuration — set by CLI before graph entry
     from_ref: str | None = None
     to_ref: str | None = None
     output_path: Path | None = None
 
-    # Context — populated by clg_context
+    # Context — written by clg_context
     diff: str = ""
     commits: list[str] = Field(default_factory=list)
     version: str = "Unreleased"
@@ -28,11 +28,11 @@ class ChangelogState(PipelineState):
     has_breaking_changes: bool = False
     is_initial_commit: bool = False
     diff_was_truncated: bool = False
-    nothing_to_document: bool = False
+    nothing_to_document: bool = False  # gate for _after_context → skips clg_llm when True
 
     # Pipeline state
-    generated_entry: str = ""
-    accepted_entry: str | None = None
+    generated_entry: str = ""          # written by: clg_llm
+    accepted_entry: str | None = None  # written by: clg_preview
 
     @property
     def resolved_output_path(self) -> Path:

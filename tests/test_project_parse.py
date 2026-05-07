@@ -3,12 +3,12 @@
 from pathlib import Path
 
 from src.schemas.readme_io import ProjectContext
+from src.utils.project_api import scan_public_api
 from src.utils.project_parse import (
     build_dir_tree,
     find_init_docstring,
     load_existing_readme,
     parse_pyproject,
-    scan_public_api,
 )
 
 # ---------------------------------------------------------------------------

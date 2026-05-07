@@ -1,9 +1,9 @@
 """Shared runner utilities — thread ID generation for LangGraph checkpointing."""
 
-import hashlib
 from datetime import datetime
 from pathlib import Path
 
+from src.utils.fs import hash_content
 from src.utils.git import get_root
 
 __all__ = ["make_thread", "thread_id"]
@@ -12,8 +12,7 @@ __all__ = ["make_thread", "thread_id"]
 def thread_id(command: str, target_path: Path) -> str:
     """Return a 16-char hex hash of repo_root + command + path; stable across resumes."""
     root = get_root()
-    key = f"{root}{command}{target_path}"
-    return hashlib.sha256(key.encode()).hexdigest()[:16]
+    return hash_content(f"{root}{command}{target_path}")
 
 
 def make_thread(command: str, target_path: Path, resume: bool) -> str:

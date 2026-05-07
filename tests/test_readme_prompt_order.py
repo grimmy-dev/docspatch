@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from src.graph.nodes.readme.generate import build_readme_prompt
+from src.graph.nodes.readme.prompts import build_readme_prompt
 from src.schemas.readme_state import ReadmeState
 
 

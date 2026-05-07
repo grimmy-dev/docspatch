@@ -1,12 +1,12 @@
 """readme_understand node — cheap per-module summarisation with hash-based caching."""
 
 import asyncio
-import hashlib
 from pathlib import Path
 
 from src.schemas.readme_io import ReadmeUnderstandUpdate
 from src.schemas.readme_state import ReadmeState
 from src.utils.config import load
+from src.utils.fs import hash_content
 from src.utils.llm import acall_llm, is_cancelled
 from src.utils.log import get_logger
 from src.utils.prompts import README_UNDERSTAND_SYSTEM
@@ -47,11 +47,6 @@ def _select_modules(
     return sorted(public_api, key=lambda p: _rank_module(p, changed), reverse=True)[:cap]
 
 
-def _hash_content(content: str) -> str:
-    """Produce a 16-char SHA-256 fingerprint of file content."""
-    return hashlib.sha256(content.encode()).hexdigest()[:16]
-
-
 def _build_understanding_string(summaries: dict[str, str]) -> str:
     """Format per-module summaries into a compact project understanding block."""
     lines = ["Project Understanding:"] + [f"- {mod}: {summary}" for mod, summary in summaries.items()]
@@ -77,7 +72,7 @@ def _partition_modules(
     fresh: list[str] = []
     cached: list[str] = []
     for mod in selected:
-        if cached_hashes.get(mod) == _hash_content(contents[mod]):
+        if cached_hashes.get(mod) == hash_content(contents[mod]):
             cached.append(mod)
         else:
             fresh.append(mod)
@@ -154,7 +149,7 @@ async def readme_understand(state: ReadmeState) -> ReadmeUnderstandUpdate:
 
     new_hashes = {
         **state.module_hashes,
-        **{mod: _hash_content(contents[mod]) for mod in selected},
+        **{mod: hash_content(contents[mod]) for mod in selected},
     }
     new_summaries = {**state.module_summaries, **fresh_summaries}
     ordered = {mod: new_summaries[mod] for mod in selected if mod in new_summaries}

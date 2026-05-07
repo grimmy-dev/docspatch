@@ -21,7 +21,7 @@ class ReadmeState(PipelineState):
     output_path: Path | None = None  # write destination; defaults to target_path/README.md
     repo_root: Path | None = None  # resolved repo root; set by readme_context for scope detection
 
-    # Project context — populated by readme_context
+    # Project context — written by readme_context
     project_name: str = ""
     project_version: str | None = None
     project_description: str | None = None
@@ -35,24 +35,24 @@ class ReadmeState(PipelineState):
     license_id: str | None = None
     public_api: dict[str, list[str]] = Field(default_factory=dict)
 
-    # Diff-filter state — populated by readme_diff_filter
-    up_to_date: bool = False
+    # Diff-filter state — written by readme_diff_filter
+    up_to_date: bool = False           # gate for _after_diff_filter → skips to END when True
     diff_changed_files: list[str] = Field(default_factory=list)
 
-    # Enrichment signals — populated by readme_context
+    # Enrichment signals — written by readme_context
     git_signals: str = ""
     test_coverage: str = ""
     usage_examples: list[UsageExample] = Field(default_factory=list)
 
-    # Understanding cache — populated by readme_understand
+    # Understanding cache — written by readme_understand
     project_understanding: str | None = None
     module_summaries: dict[str, str] = Field(default_factory=dict)
     module_hashes: dict[str, str] = Field(default_factory=dict)
 
     # Pipeline state
-    generated_readme: str = ""
-    accepted_readme: str | None = None
-    remarks: str = ""
+    generated_readme: str = ""          # written by: readme_llm
+    accepted_readme: str | None = None  # written by: readme_preview
+    remarks: str = ""                   # set by CLI before graph entry
 
     @property
     def resolved_output_path(self) -> Path:
