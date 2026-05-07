@@ -10,7 +10,8 @@ import questionary
 from rich.panel import Panel
 
 from src.utils.config import load
-from src.utils.ui import Q_STYLE, console, copy_to_clipboard, step
+from src.utils.clipboard import copy_to_clipboard
+from src.utils.ui import Q_STYLE, console, step
 
 __all__ = [
     "handle_review_interrupt",

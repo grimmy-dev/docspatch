@@ -1,24 +1,15 @@
-"""Pure prompt-building and response-parsing for docstring generation."""
+"""Pure prompt-building for docstring generation.
 
-import json
-import re
+CORE layer — no I/O. Callers supply pre-read file slices via the
+file_slices parameter so this module has no disk dependencies.
+"""
+
 from pathlib import Path
-from typing import Any, cast
 
 from src.schemas.function import FunctionMetadata
-from src.schemas.llm_outputs import DocstringOutput
 from src.utils.prompts import DOCSTRING_STYLE
 
-__all__ = ["build_prompt", "parse_response_fallback", "read_file_slices"]
-
-
-def read_file_slices(file_path: Path, functions: list[FunctionMetadata]) -> dict[str, str]:
-    """Read file once and extract source slices for all requested functions."""
-    try:
-        lines = file_path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return {fn.name: "" for fn in functions}
-    return {fn.name: "\n".join(lines[fn.start_line - 1 : fn.end_line]) for fn in functions}
+__all__ = ["build_prompt"]
 
 
 def build_prompt(
@@ -26,8 +17,13 @@ def build_prompt(
     catalog: dict[str, FunctionMetadata],
     style: str,
     tokens_per_fn: int,
+    file_slices: dict[Path, dict[str, str]],
 ) -> str:
-    """Create the LLM prompt for a batch of functions or a single module."""
+    """Create the LLM prompt for a batch of functions or a single module.
+
+    file_slices maps each file path to a dict of {function_name: source_slice}.
+    For module-level prompts the mapping is not consulted.
+    """
     style_note = DOCSTRING_STYLE.get(style, DOCSTRING_STYLE["compact"])
 
     # Module-level docstring: minimal dedicated prompt
@@ -65,9 +61,9 @@ def build_prompt(
 
     functions_text_parts = []
     for file_path, fns in by_file.items():
-        slices = read_file_slices(file_path, fns)
+        slices = file_slices.get(file_path, {})
         for fn in fns:
-            functions_text_parts.append(f"Function: {fn.name}\n{slices[fn.name]}")
+            functions_text_parts.append(f"Function: {fn.name}\n{slices.get(fn.name, '')}")
 
     functions_text = "\n\n".join(functions_text_parts)
     return (
@@ -75,33 +71,3 @@ def build_prompt(
         f"Related functions (signatures only — for context only, do not document these):\n{context}\n\n"
         f"Generate docstrings for:\n\n{functions_text}"
     )
-
-
-def _parse_json_array(text: str) -> list[dict[str, Any]] | None:
-    """Try to extract a JSON array from text; returns None on any parse failure."""
-    try:
-        parsed = cast(list[dict[str, Any]], json.loads(text))
-        if isinstance(parsed, list):
-            return parsed
-    except (json.JSONDecodeError, TypeError) as _:
-        pass
-    match = re.search(r"\[.*\]", text, re.DOTALL)
-    if not match:
-        return None
-    try:
-        return cast(list[dict[str, Any]], json.loads(match.group()))
-    except (json.JSONDecodeError, TypeError) as _:
-        return None
-
-
-def parse_response_fallback(text: str, batch_names: set[str]) -> list[DocstringOutput]:
-    """Parse JSON docstrings from raw LLM text when structured output is unavailable."""
-    text = re.sub(r"```(?:json)?\s*", "", text).strip()
-    raw = _parse_json_array(text)
-    if raw is None:
-        return []
-    return [
-        DocstringOutput(name=item.get("name", ""), docstring=item.get("docstring", "").strip())
-        for item in raw
-        if item.get("name") in batch_names and item.get("docstring", "").strip()
-    ]
