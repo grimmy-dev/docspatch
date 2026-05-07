@@ -30,6 +30,7 @@ from src.schemas.graph_io import (
     SizeCheckInterrupt,
     SizeCheckUpdate,
 )
+from src.schemas.pipeline_state import PipelineState
 from src.schemas.state import DocpatchState
 
 __all__ = [
@@ -43,6 +44,7 @@ __all__ = [
     "CompiledDocpatchGraph",
     "DocpatchGraph",
     "DocpatchState",
+    "PipelineState",
     "FeedbackUpdate",
     "FilePickInterrupt",
     "FunctionMetadata",

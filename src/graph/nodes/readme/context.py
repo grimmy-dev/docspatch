@@ -14,7 +14,7 @@ from src.utils.project_parse import (
     parse_pyproject,
     scan_public_api,
 )
-from src.utils.readme_signals import get_git_signals, get_test_coverage_summary
+from src.utils.readme_io import get_git_signals, get_test_coverage_summary
 from src.utils.usage_signals import extract_usage_examples
 
 logger = get_logger(__name__)

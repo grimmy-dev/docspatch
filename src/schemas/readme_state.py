@@ -1,27 +1,22 @@
 """ReadmeState and TypedDict I/O types for the readme LangGraph pipeline."""
 
-import operator
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any
 
 from langgraph.graph.state import CompiledStateGraph
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from src.schemas.pipeline_state import PipelineState
 from src.utils.usage_signals import UsageExample
 
 __all__ = ["CompiledReadmeGraph", "ReadmeState"]
 
 
-class ReadmeState(BaseModel):
+class ReadmeState(PipelineState):
     """State threaded through every node in the readme pipeline."""
 
-    # Configuration
-    dry_run: bool = False
-    rewrite: bool = False
-    style: str = "compact"
-
     # Paths
-    repo_path: Path | None = None
+    rewrite: bool = False
     target_path: Path | None = None  # scope root; defaults to repo_path
     output_path: Path | None = None  # write destination; defaults to target_path/README.md
     repo_root: Path | None = None  # resolved repo root; set by readme_context for scope detection
@@ -58,13 +53,6 @@ class ReadmeState(BaseModel):
     generated_readme: str = ""
     accepted_readme: str | None = None
     remarks: str = ""
-
-    # Accumulating fields — reducers required for LangGraph multi-node accumulation
-    token_actual: Annotated[int, operator.add] = 0
-    warnings: Annotated[list[str], operator.add] = Field(default_factory=list)
-
-    # Control
-    cancelled: bool = False
 
     @property
     def resolved_output_path(self) -> Path:

@@ -1,7 +1,6 @@
 """Tests for diff_semantics — pure functions, no mocking needed."""
 
 from src.utils.diff_semantics import (
-    estimate_diff_signal_ratio,
     filter_diff_noise,
     score_and_filter_commits,
 )
@@ -208,22 +207,3 @@ def test_score_keeps_fix_and_perf() -> None:
     assert result == commits
 
 
-# ---------------------------------------------------------------------------
-# estimate_diff_signal_ratio tests
-# ---------------------------------------------------------------------------
-
-
-def test_signal_ratio_pure_signal() -> None:
-    diff = "diff --git a/f.py b/f.py\n--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n+def foo() -> None:\n-def foo():\n"
-    ratio = estimate_diff_signal_ratio(diff)
-    assert ratio > 0.5
-
-
-def test_signal_ratio_pure_noise() -> None:
-    diff = "diff --git a/f.py b/f.py\n--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n+\n-\n"
-    ratio = estimate_diff_signal_ratio(diff)
-    assert ratio == 0.0
-
-
-def test_signal_ratio_empty_diff() -> None:
-    assert estimate_diff_signal_ratio("") == 0.0

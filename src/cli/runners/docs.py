@@ -1,14 +1,12 @@
 """Docstring pipeline orchestration."""
 
-import time
 from typing import Any, cast
 
 import typer
 from langgraph.types import Command
 from rich.status import Status
 
-from src.cli.runners._common import iv_type
-from src.cli.stream import RetryState, handle_stream_error, stream_graph
+from src.cli.runners.pipeline import run_pipeline
 from src.cli.ui_handlers import (
     handle_file_pick_interrupt,
     handle_size_check_interrupt,
@@ -17,7 +15,6 @@ from src.cli.ui_handlers import (
 from src.schemas.graph_io import CompiledDocpatchGraph, FilePickInterrupt, GraphConfig, SizeCheckInterrupt
 from src.schemas.state import DocpatchState
 from src.utils.config import load
-from src.utils.llm import is_cancelled, reset_cancel
 from src.utils.log import get_logger
 from src.utils.ui import console, error, info, step, warn
 
@@ -36,19 +33,24 @@ NODE_MESSAGES: dict[str, str] = {
 }
 
 
-async def _stream_until_interrupt(
-    graph: CompiledDocpatchGraph,
-    payload: DocpatchState | Command[Any] | None,
-    config: GraphConfig,
-    status: Status,
-    is_dry_run: bool = False,
-) -> tuple[bool, Any]:
-    """Stream docstring pipeline events, tracking batch progress."""
+async def run_docstring(graph: CompiledDocpatchGraph, state: DocpatchState, config: GraphConfig) -> None:
+    """Async orchestration of the docstring pipeline."""
+    from src.utils.validation import validate_state
+
+    try:
+        validate_state(state)
+    except ValueError as e:
+        error(f"State validation failed: {e}")
+        raise typer.Exit(code=1) from None
+
+    preflight_model = None if state.dry_run else load().defaults.model
+    dry_skip = frozenset({"batcher", "collect_batches", "writer", "cache_update"}) if state.dry_run else frozenset()
+
     generation_started = False
     total_batches = 0
     completed_batches = 0
 
-    def on_node(node_name: str, node_data: Any) -> bool:
+    def on_node(node_name: str, node_data: Any, status: Status) -> bool:
         nonlocal generation_started, total_batches, completed_batches
         if node_name == "batcher":
             batches = node_data.get("batches", [])
@@ -66,81 +68,40 @@ async def _stream_until_interrupt(
             return True
         return False
 
-    dry_skip = frozenset({"batcher", "collect_batches", "writer", "cache_update"}) if is_dry_run else frozenset()
-    return await stream_graph(graph, payload, config, status, NODE_MESSAGES, dry_skip, on_node)
+    async def size_check_handler(iv: Any) -> Command[Any] | None:
+        strategy = await handle_size_check_interrupt(cast(SizeCheckInterrupt, iv))
+        if strategy == "quit":
+            info("Aborted.")
+            raise typer.Exit(0)
+        return Command(resume=strategy)
 
+    async def file_pick_handler(iv: Any) -> Command[Any] | None:
+        files = cast(FilePickInterrupt, iv).get("files", [])
+        chosen = await handle_file_pick_interrupt(files)
+        return Command(resume=chosen)
 
-async def run_docstring(graph: CompiledDocpatchGraph, state: DocpatchState, config: GraphConfig) -> None:
-    """Async orchestration of the docstring pipeline."""
-    from src.utils.validation import validate_state
+    async def review_handler(iv: Any) -> Command[Any] | None:
+        current_state = await graph.aget_state(config)
+        catalog = current_state.values.get("catalog", {})
+        docs = iv.get("docs", {})
+        result = await run_review_session(docs, catalog)
+        return Command(resume=result)
 
-    try:
-        validate_state(state)
-    except ValueError as e:
-        error(f"State validation failed: {e}")
-        raise typer.Exit(code=1) from None
-
-    if not state.dry_run:
-        try:
-            from src.utils._llm_providers import get_llm
-
-            get_llm(load().defaults.model)
-        except RuntimeError as exc:
-            error(f"Preflight failed: {exc}")
-            raise typer.Exit(1) from exc
-
-    reset_cancel()
-    payload: DocpatchState | Command[Any] | None = state
-    rs = RetryState()
-    start = time.monotonic()
-
-    if not state.dry_run:
-        info("Ctrl+C to stop.")
-
-    with console.status("[dim]Initializing pipeline…[/dim]", spinner="dots") as status:
-        while True:
-            try:
-                interrupted, interrupt_val = await _stream_until_interrupt(graph, payload, config, status=status, is_dry_run=state.dry_run)
-            except (Exception, KeyboardInterrupt) as exc:
-                await handle_stream_error(exc, rs, status)
-                payload = None
-                status.start()
-                continue
-            else:
-                rs.network_retries = 0
-
-            if not interrupted or interrupt_val is None:
-                break
-
-            status.stop()
-            kind = iv_type(interrupt_val)
-
-            if kind == "size_check":
-                strategy = await handle_size_check_interrupt(cast(SizeCheckInterrupt, interrupt_val))
-                if strategy == "quit":
-                    info("Aborted.")
-                    raise typer.Exit(0)
-                payload = Command(resume=strategy)
-
-            elif kind == "file_pick":
-                files = cast(FilePickInterrupt, interrupt_val).get("files", [])
-                chosen = await handle_file_pick_interrupt(files)
-                payload = Command(resume=chosen)
-
-            elif kind == "review":
-                current_state = await graph.aget_state(config)
-                catalog = current_state.values.get("catalog", {})
-                docs = interrupt_val.get("docs", {})
-                result = await run_review_session(docs, catalog)
-                payload = Command(resume=result)
-
-            else:
-                break
-
-            if is_cancelled():
-                break
-
-            status.start()
+    elapsed = await run_pipeline(
+        graph,
+        state,
+        config,
+        node_messages=NODE_MESSAGES,
+        dry_skip=dry_skip,
+        init_message="Initializing pipeline…",
+        preflight_model=preflight_model,
+        interrupt_handlers={
+            "size_check": size_check_handler,
+            "file_pick": file_pick_handler,
+            "review": review_handler,
+        },
+        on_node=on_node,
+    )
 
     final_state_data = await graph.aget_state(config)
     final_state = DocpatchState.model_validate(final_state_data.values)
@@ -155,7 +116,6 @@ async def run_docstring(graph: CompiledDocpatchGraph, state: DocpatchState, conf
     for w in final_state.warnings:
         warn(w)
 
-    elapsed = time.monotonic() - start
     console.print()
     step(f"Done — {final_state.token_actual:,} tokens used · {elapsed:.1f}s")
 

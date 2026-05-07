@@ -1,20 +1,16 @@
 """README pipeline orchestration."""
 
-import time
 from typing import Any
 
-import typer
 from langgraph.types import Command
 
-from src.cli.runners._common import iv_type
-from src.cli.stream import RetryState, handle_stream_error, stream_graph
+from src.cli.runners.pipeline import run_pipeline
 from src.cli.ui_handlers import handle_readme_review_interrupt, offer_context_view
 from src.schemas.graph_io import GraphConfig
 from src.schemas.readme_state import CompiledReadmeGraph, ReadmeState
 from src.utils.config import load
-from src.utils.llm import is_cancelled, reset_cancel
 from src.utils.log import get_logger
-from src.utils.ui import console, error, info, step, warn
+from src.utils.ui import console, info, step, warn
 
 __all__ = ["run_readme"]
 
@@ -30,56 +26,26 @@ README_NODE_MESSAGES: dict[str, str] = {
 
 async def run_readme(graph: CompiledReadmeGraph, state: ReadmeState, config: GraphConfig) -> None:
     """Async orchestration of the README pipeline."""
-    if not state.dry_run:
-        try:
-            from src.utils._llm_providers import get_llm
-
-            get_llm(load().defaults.review_model)
-        except RuntimeError as exc:
-            error(f"Preflight failed: {exc}")
-            raise typer.Exit(1) from exc
-
-    reset_cancel()
-    payload: ReadmeState | Command[Any] | None = state
-    rs = RetryState()
-    start = time.monotonic()
-
-    if not state.dry_run:
-        info("Ctrl+C to stop.")
-
+    preflight_model = None if state.dry_run else load().defaults.review_model
     dry_skip = frozenset({"readme_llm", "readme_writer"}) if state.dry_run else frozenset()
 
-    with console.status("[dim]Initializing readme pipeline…[/dim]", spinner="dots") as status:
-        while True:
-            try:
-                interrupted, interrupt_val = await stream_graph(graph, payload, config, status, README_NODE_MESSAGES, dry_skip)
-            except (Exception, KeyboardInterrupt) as exc:
-                await handle_stream_error(exc, rs, status)
-                payload = None
-                status.start()
-                continue
-            else:
-                rs.network_retries = 0
+    async def readme_review_handler(iv: Any) -> Command[Any] | None:
+        content = iv.get("content", "")
+        accepted = await handle_readme_review_interrupt(content, style=state.style)
+        if accepted is None:
+            return None
+        return Command(resume=accepted)
 
-            if not interrupted or interrupt_val is None:
-                break
-
-            status.stop()
-            kind = iv_type(interrupt_val)
-
-            if kind == "readme_review":
-                content = interrupt_val.get("content", "")
-                accepted = await handle_readme_review_interrupt(content, style=state.style)
-                if accepted is None:
-                    break
-                payload = Command(resume=accepted)
-            else:
-                break
-
-            if is_cancelled():
-                break
-
-            status.start()
+    elapsed = await run_pipeline(
+        graph,
+        state,
+        config,
+        node_messages=README_NODE_MESSAGES,
+        dry_skip=dry_skip,
+        init_message="Initializing readme pipeline…",
+        preflight_model=preflight_model,
+        interrupt_handlers={"readme_review": readme_review_handler},
+    )
 
     final_state_data = await graph.aget_state(config)
     final_state = ReadmeState.model_validate(final_state_data.values)
@@ -103,6 +69,5 @@ async def run_readme(graph: CompiledReadmeGraph, state: ReadmeState, config: Gra
             warn("README not written.")
         else:
             output = final_state.resolved_output_path
-            elapsed = time.monotonic() - start
             console.print()
             step(f"README written → {output} — {final_state.token_actual:,} tokens · {elapsed:.1f}s")

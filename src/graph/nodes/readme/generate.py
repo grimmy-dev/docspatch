@@ -10,7 +10,7 @@ from src.utils.llm import acall_llm, is_cancelled
 from src.utils.log import get_logger
 from src.utils.project_format import MAX_README_CHARS, detect_badges
 from src.utils.prompts import README_STYLE, README_SYSTEM
-from src.utils.readme_signals import build_targeted_readme_context, extract_readme_headings
+from src.utils.readme_analysis import build_targeted_readme_context, extract_readme_headings
 
 logger = get_logger(__name__)
 

@@ -1,9 +1,8 @@
-"""Shared runner utilities — thread ID generation and interrupt typing."""
+"""Shared runner utilities — thread ID generation for LangGraph checkpointing."""
 
 import hashlib
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from src.utils.git import get_root
 
@@ -24,8 +23,3 @@ def make_thread(command: str, target_path: Path, resume: bool) -> str:
         return base
     ts = datetime.now().strftime("%Y%m%d%H%M%S")
     return f"{base}_{ts}"
-
-
-def iv_type(iv: Any) -> str | None:
-    """Extract the 'type' field from an interrupt value dict."""
-    return iv.get("type") if isinstance(iv, dict) else None

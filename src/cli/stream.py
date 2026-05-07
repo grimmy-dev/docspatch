@@ -5,6 +5,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from rich.status import Status
+
 import typer
 from rich.status import Status
 
@@ -33,18 +35,18 @@ async def stream_graph(
     node_messages: dict[str, str],
     dry_skip: frozenset[str] = frozenset(),
     # Any: LangGraph node_data shape varies per pipeline — no shared contract to express
-    on_node: Callable[[str, Any], bool] | None = None,
+    on_node: Callable[[str, Any, Status], bool] | None = None,
 ) -> tuple[bool, Any]:  # (was_interrupted, interrupt_value)
     """Core stream loop shared by all pipelines.
 
-    on_node(name, data) returns True to suppress the default step message."""
+    on_node(name, data, status) returns True to suppress the default step message."""
     async for event in graph.astream(payload, config, stream_mode="updates"):
         if "__interrupt__" in event:
             return True, event["__interrupt__"][0].value if event["__interrupt__"] else None
         for node_name, node_data in event.items():
             if node_name in dry_skip:
                 continue
-            suppress = on_node(node_name, node_data) if on_node else False
+            suppress = on_node(node_name, node_data, status) if on_node else False
             if not suppress and node_name in node_messages:
                 status.stop()
                 step(node_messages[node_name])

@@ -8,7 +8,7 @@ import fnmatch
 import re
 from typing import TypedDict
 
-__all__ = ["FilteredDiff", "estimate_diff_signal_ratio", "filter_diff_noise", "score_and_filter_commits"]
+__all__ = ["FilteredDiff", "detect_breaking_changes", "filter_diff_noise", "score_and_filter_commits", "truncate_diff"]
 
 _SIGNATURE_RE = re.compile(r"^[+-](async def |def |class )\w")
 _NOISE_FILE_GLOBS = ("*.lock", "*.pyc", "*.min.js", "*.min.css")
@@ -16,8 +16,9 @@ _NOISE_PATH_PARTS = ("__pycache__/",)
 _IMPORT_RE = re.compile(r"^[+-]\s*(import |from \S+ import )")
 _TOML_VERSION_RE = re.compile(r'^[+-]\s*version\s*=\s*"')
 _CONVENTIONAL_TYPE_RE = re.compile(r"^[a-f0-9]+ ([a-zA-Z]+)(\([^)]+\))?([!])?: ")
+_CONVENTIONAL_BREAKING_RE = re.compile(r"^[a-z]+(\([^)]+\))?!:")
 _DROP_TYPES = frozenset({"chore", "style", "refactor", "test", "docs", "ci", "build", "bump", "release"})
-_LOGIC_RE = re.compile(r"^(async def |def |class |if |for |while |return |yield |raise |with |assert |\w+ =)")
+
 
 
 class FilteredDiff(TypedDict):
@@ -169,15 +170,24 @@ def score_and_filter_commits(commits: list[str]) -> list[str]:
     return kept if kept else list(commits)
 
 
-def estimate_diff_signal_ratio(raw_diff: str) -> float:
-    """Return 0.0–1.0 ratio of signal lines (signatures/logic) to total changed lines."""
-    total = 0
-    signal = 0
-    for line in raw_diff.splitlines():
-        if not line.startswith(("+", "-")) or line.startswith(("---", "+++")):
-            continue
-        total += 1
-        content = line[1:].strip()
-        if _SIGNATURE_RE.match(line) or _LOGIC_RE.match(content):
-            signal += 1
-    return signal / total if total > 0 else 0.0
+def truncate_diff(diff: str, cap: int) -> tuple[str, bool]:
+    """Truncate diff to cap chars, appending a note. Returns (diff, was_truncated)."""
+    if len(diff) <= cap:
+        return diff, False
+    note = f"\n[Diff truncated — showing {cap:,} of {len(diff):,} chars]"
+    return diff[:cap] + note, True
+
+
+def detect_breaking_changes(commits: list[str], diff: str) -> bool:
+    """Return True if any signal indicates a breaking change.
+
+    Checks Conventional Commit markers (! suffix or BREAKING CHANGE footer) first,
+    then falls back to scanning for removed top-level public def/class in the diff."""
+    for entry in commits:
+        msg = entry.split(" ", 1)[1] if " " in entry else entry
+        if _CONVENTIONAL_BREAKING_RE.match(msg) or "BREAKING CHANGE" in msg:
+            return True
+    for line in diff.splitlines():
+        if re.match(r"^-(?!-)(def |class )[A-Za-z]", line):
+            return True
+    return False

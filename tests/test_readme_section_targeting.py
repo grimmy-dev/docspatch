@@ -1,6 +1,6 @@
 """Unit tests for README section targeting — parse, map, and build targeted context."""
 
-from src.utils.readme_signals import (
+from src.utils.readme_analysis import (
     build_targeted_readme_context,
     map_files_to_sections,
     parse_readme_sections,

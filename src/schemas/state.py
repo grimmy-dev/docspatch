@@ -1,14 +1,14 @@
 """Shared LangGraph state and reducers for the docstring pipeline."""
 
-import operator
 from pathlib import Path
 from typing import Annotated
 
 __all__ = ["DocpatchState", "merge_dicts"]
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from src.schemas.function import FunctionMetadata
+from src.schemas.pipeline_state import PipelineState
 
 
 def merge_dicts(a: dict[str, str], b: dict[str, str]) -> dict[str, str]:
@@ -24,25 +24,19 @@ def merge_dicts(a: dict[str, str], b: dict[str, str]) -> dict[str, str]:
     return {**a, **b}
 
 
-class DocpatchState(BaseModel):
+class DocpatchState(PipelineState):
     """Shared state threaded through every docspatch LangGraph node."""
 
     # --- Accumulating fields (reducers) ---
     generated_docs: Annotated[dict[str, str], merge_dicts] = Field(default_factory=dict)
     accepted_docs: Annotated[dict[str, str], merge_dicts] = Field(default_factory=dict)
-    token_actual: Annotated[int, operator.add] = 0
     feedback: Annotated[dict[str, str], merge_dicts] = Field(default_factory=dict)
-    warnings: Annotated[list[str], operator.add] = Field(default_factory=list)
 
     # --- Configuration ---
-    style: str = "compact"
     from_ref: str | None = None
     update_all: bool = False
-    dry_run: bool = False
-    cancelled: bool = False
 
     # --- Environment Paths ---
-    repo_path: Path | None = None
     target_path: Path | None = None
     output_path: Path | None = None
 
