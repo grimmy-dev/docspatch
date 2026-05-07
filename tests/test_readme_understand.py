@@ -13,8 +13,8 @@ def _state(**kwargs: object) -> ReadmeState:
     return ReadmeState(repo_path=Path("/repo"), target_path=Path("/repo"), **kwargs)  # type: ignore[arg-type]
 
 
-def _sym_hash(symbols: list[str]) -> str:
-    return hashlib.sha256("|".join(symbols).encode()).hexdigest()[:16]
+def _content_hash(content: str) -> str:
+    return hashlib.sha256(content.encode()).hexdigest()[:16]
 
 
 def _make_llm_result(text: str, tokens: int = 10) -> tuple[None, str, int]:
@@ -63,18 +63,18 @@ def test_select_modules_prioritises_main() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_hash_module_is_deterministic() -> None:
-    from src.graph.nodes.readme.understand import _hash_module
+def test_hash_content_is_deterministic() -> None:
+    from src.graph.nodes.readme.understand import _hash_content
 
-    symbols = ["foo", "bar", "baz"]
-    assert _hash_module(symbols) == _hash_module(symbols)
-    assert len(_hash_module(symbols)) == 16
+    content = "def foo(): pass\ndef bar(): pass"
+    assert _hash_content(content) == _hash_content(content)
+    assert len(_hash_content(content)) == 16
 
 
-def test_hash_module_differs_on_symbol_change() -> None:
-    from src.graph.nodes.readme.understand import _hash_module
+def test_hash_content_differs_on_change() -> None:
+    from src.graph.nodes.readme.understand import _hash_content
 
-    assert _hash_module(["foo"]) != _hash_module(["bar"])
+    assert _hash_content("def foo(): pass") != _hash_content("def bar(): pass")
 
 
 def test_build_understanding_string_contains_all_modules() -> None:
@@ -88,19 +88,19 @@ def test_build_understanding_string_contains_all_modules() -> None:
 
 
 def test_partition_modules_splits_correctly() -> None:
-    from src.graph.nodes.readme.understand import _hash_module, _partition_modules
+    from src.graph.nodes.readme.understand import _hash_content, _partition_modules
 
-    symbols_a = ["foo", "bar"]
-    symbols_b = ["baz"]
-    cached_hashes = {"mod_a": _hash_module(symbols_a)}
+    content_a = "def foo(): pass\ndef bar(): pass"
+    content_b = "def baz(): pass"
+    contents = {"mod_a.py": content_a, "mod_b.py": content_b}
+    cached_hashes = {"mod_a.py": _hash_content(content_a)}
 
-    public_api = {"mod_a": symbols_a, "mod_b": symbols_b}
-    fresh, cached = _partition_modules(list(public_api), public_api, cached_hashes)
+    fresh, cached = _partition_modules(list(contents), cached_hashes, contents)
 
-    assert "mod_b" in fresh
-    assert "mod_a" in cached
-    assert "mod_b" not in cached
-    assert "mod_a" not in fresh
+    assert "mod_b.py" in fresh
+    assert "mod_a.py" in cached
+    assert "mod_b.py" not in cached
+    assert "mod_a.py" not in fresh
 
 
 # ---------------------------------------------------------------------------
@@ -159,9 +159,9 @@ async def test_fresh_module_triggers_llm_call() -> None:
 async def test_cached_module_skips_llm_call() -> None:
     from src.graph.nodes.readme.understand import readme_understand
 
-    symbols = ["func_a"]
-    existing_hash = _sym_hash(symbols)
-    public_api = {"src/bar.py": symbols}
+    fake_content = "def func_a(): pass"
+    existing_hash = _content_hash(fake_content)
+    public_api = {"src/bar.py": ["func_a"]}
     state = _state(
         public_api=public_api,
         module_summaries={"src/bar.py": "Existing cached summary."},
@@ -170,7 +170,7 @@ async def test_cached_module_skips_llm_call() -> None:
 
     mock_llm = AsyncMock()
     with (
-        patch("src.graph.nodes.readme.understand._read_module_content", new=AsyncMock(return_value="def func_a(): pass")),
+        patch("src.graph.nodes.readme.understand._read_module_content", new=AsyncMock(return_value=fake_content)),
         patch("src.graph.nodes.readme.understand.acall_llm", mock_llm),
     ):
         result = await readme_understand(state)
@@ -206,20 +206,22 @@ async def test_project_understanding_contains_all_module_names() -> None:
 async def test_mixed_fresh_and_cached_merges_correctly() -> None:
     from src.graph.nodes.readme.understand import readme_understand
 
-    cached_symbols = ["existing_fn"]
-    fresh_symbols = ["new_fn"]
-    existing_hash = _sym_hash(cached_symbols)
+    cached_content = "def existing_fn(): pass"
+    existing_hash = _content_hash(cached_content)
 
-    public_api = {"cached_mod.py": cached_symbols, "fresh_mod.py": fresh_symbols}
+    public_api = {"cached_mod.py": ["existing_fn"], "fresh_mod.py": ["new_fn"]}
     state = _state(
         public_api=public_api,
         module_summaries={"cached_mod.py": "Cached summary."},
         module_hashes={"cached_mod.py": existing_hash},
     )
 
+    async def fake_read(path: object) -> str:
+        return cached_content if "cached" in str(path) else ""
+
     mock_llm = AsyncMock(return_value=_make_llm_result("Fresh summary.", tokens=8))
     with (
-        patch("src.graph.nodes.readme.understand._read_module_content", new=AsyncMock(return_value="")),
+        patch("src.graph.nodes.readme.understand._read_module_content", side_effect=fake_read),
         patch("src.graph.nodes.readme.understand.acall_llm", mock_llm),
     ):
         result = await readme_understand(state)

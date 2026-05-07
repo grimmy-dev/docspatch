@@ -47,9 +47,9 @@ def _select_modules(
     return sorted(public_api, key=lambda p: _rank_module(p, changed), reverse=True)[:cap]
 
 
-def _hash_module(symbols: list[str]) -> str:
-    """Produce a 16-char SHA-256 fingerprint for a module's public symbol list."""
-    return hashlib.sha256("|".join(symbols).encode()).hexdigest()[:16]
+def _hash_content(content: str) -> str:
+    """Produce a 16-char SHA-256 fingerprint of file content."""
+    return hashlib.sha256(content.encode()).hexdigest()[:16]
 
 
 def _build_understanding_string(summaries: dict[str, str]) -> str:
@@ -70,14 +70,14 @@ def _prompt_for_module(mod: str, content: str, symbols: list[str]) -> str:
 
 def _partition_modules(
     selected: list[str],
-    public_api: dict[str, list[str]],
     cached_hashes: dict[str, str],
+    contents: dict[str, str],
 ) -> tuple[list[str], list[str]]:
-    """Split selected modules into fresh (hash changed) and cached (hash matches)."""
+    """Split selected modules into fresh (content hash changed) and cached (hash matches)."""
     fresh: list[str] = []
     cached: list[str] = []
     for mod in selected:
-        if cached_hashes.get(mod) == _hash_module(public_api.get(mod, [])):
+        if cached_hashes.get(mod) == _hash_content(contents[mod]):
             cached.append(mod)
         else:
             fresh.append(mod)
@@ -143,19 +143,18 @@ async def readme_understand(state: ReadmeState) -> ReadmeUnderstandUpdate:
     raw_contents = await asyncio.gather(*[_read_module_content(base / mod) for mod in selected])
     contents: dict[str, str] = dict(zip(selected, raw_contents, strict=True))
 
-    fresh, cached = _partition_modules(selected, state.public_api, state.module_hashes)
+    fresh, cached = _partition_modules(selected, state.module_hashes, contents)
     logger.debug(
-        "readme_understand: %d selected, %d fresh, %d cached",
-        len(selected),
-        len(fresh),
+        "readme_understand: skipped %d unchanged modules, re-understood %d changed modules",
         len(cached),
+        len(fresh),
     )
 
     fresh_summaries, tokens = await _summarise_fresh(fresh, contents, state.public_api, cfg.defaults.model)
 
     new_hashes = {
         **state.module_hashes,
-        **{mod: _hash_module(state.public_api.get(mod, [])) for mod in fresh},
+        **{mod: _hash_content(contents[mod]) for mod in selected},
     }
     new_summaries = {**state.module_summaries, **fresh_summaries}
     ordered = {mod: new_summaries[mod] for mod in selected if mod in new_summaries}
