@@ -13,15 +13,21 @@ logger = get_logger(__name__)
 
 
 def build_clg_prompt(state: ChangelogState) -> str:
-    """Assemble the LLM user prompt from collected changelog context."""
+    """Assemble the LLM user prompt from collected changelog context.
+
+    Stable content (project metadata, version, style) precedes dynamic content
+    (commits, diff) so repeated runs share a cacheable prompt prefix.
+    """
     style_note = CHANGELOG_STYLE.get(state.style, CHANGELOG_STYLE["compact"])
-    lines: list[str] = [f"Style: {style_note}", ""]
+    lines: list[str] = []
 
     if state.project_name:
         lines.append(f"Project: {state.project_name}")
     if state.project_description:
         lines.append(f"Description: {state.project_description}")
     lines.append(f"Version: {state.version}")
+    lines.append(f"Style: {style_note}")
+    lines.append("")
 
     if state.from_ref:
         end = state.to_ref or "HEAD"

@@ -10,34 +10,39 @@ from src.utils.llm import acall_llm, is_cancelled
 from src.utils.log import get_logger
 from src.utils.project_format import MAX_README_CHARS, detect_badges
 from src.utils.prompts import README_STYLE, README_SYSTEM
-from src.utils.readme_signals import extract_readme_headings
+from src.utils.readme_signals import build_targeted_readme_context, extract_readme_headings
 
 logger = get_logger(__name__)
 
 
-def build_readme_prompt(state: ReadmeState) -> str:
-    """Assemble the LLM user prompt from collected project context."""
-    style_note = README_STYLE.get(state.style, README_STYLE["compact"])
-    lines: list[str] = [f"Style: {style_note}", ""]
-
-    # Explicit scope label — LLM uses this to apply the scope rule from the system prompt
-    is_scoped = False
+def _compute_scope(state: ReadmeState) -> tuple[bool, str]:
+    """Return (is_scoped, scope_label) without mutating state."""
     if state.repo_root and state.target_path:
         target_resolved = Path(state.target_path).resolve()
         repo_resolved = state.repo_root.resolve()
         if target_resolved != repo_resolved:
-            is_scoped = True
             try:
                 rel = target_resolved.relative_to(repo_resolved)
-                lines.append(f"Scope: {rel}")
+                return True, str(rel)
             except ValueError:
-                lines.append(f"Scope: {state.target_path}")
-        else:
-            lines.append("Scope: Project Root")
-    else:
-        lines.append("Scope: Project Root")
-    lines.append("")
+                return True, str(state.target_path)
+    return False, "Project Root"
 
+
+def build_readme_prompt(state: ReadmeState) -> str:
+    """Assemble the LLM user prompt from collected project context.
+
+    Sections ordered stable → dynamic so that a prompt cache prefix covers
+    the most-reused content at the front.
+    """
+    is_scoped, scope_label = _compute_scope(state)
+    lines: list[str] = []
+
+    # 1. Project understanding — most stable (produced by understand node)
+    if state.project_understanding:
+        lines.append(f"Module understanding:\n{state.project_understanding}\n")
+
+    # 2–3. Project metadata + dependencies (stable)
     if state.project_name:
         lines.append(f"Project: {state.project_name}")
     if state.project_version:
@@ -54,15 +59,17 @@ def build_readme_prompt(state: ReadmeState) -> str:
         lines.append(f"CLI scripts: {scripts}")
     if state.init_docstring:
         lines.append(f"\nModule docstring:\n{state.init_docstring}")
+
+    # 4–5. Dir tree / public API (change occasionally)
     if state.dir_tree:
         lines.append(f"\nDirectory structure:\n{state.dir_tree}")
-
-    if state.public_api:
+    if not state.project_understanding and state.public_api:
         module_cap = 20 if state.style == "compact" else 40
         symbol_cap = 8 if state.style == "compact" else 15
         api_lines = [f"  {mod}: {', '.join(syms[:symbol_cap])}" for mod, syms in list(state.public_api.items())[:module_cap]]
         lines.append("\nPublic API:\n" + "\n".join(api_lines))
 
+    # 6. Usage examples (change occasionally)
     if state.usage_examples:
         cap = 8 if state.style == "compact" else 20
         lines.append("\nUsage examples (from tests):")
@@ -72,6 +79,7 @@ def build_readme_prompt(state: ReadmeState) -> str:
                 entry += f"  # {ex['context']}"
             lines.append(entry)
 
+    # 7. Badges (detailed only, stable but verbose)
     if state.style == "detailed":
         badges = detect_badges(state.remote_url, state.project_name or None, state.project_version, state.license_id)
         if badges:
@@ -79,32 +87,54 @@ def build_readme_prompt(state: ReadmeState) -> str:
         else:
             lines.append("\nDo not include any badges — none could be verified for this project.")
 
+    # 8. Git signals / test coverage (dynamic per run)
     if state.git_signals:
         lines.append(f"\nGit signals: {state.git_signals}")
     if state.test_coverage:
         lines.append(f"\n{state.test_coverage}")
 
+    # 9. Existing README (dynamic per run)
     if state.existing_readme and not state.rewrite:
         if state.diff_changed_files:
-            headings = extract_readme_headings(state.existing_readme)
-            lines.append("\nChanged files:\n" + "\n".join(f"  {f}" for f in state.diff_changed_files))
-            if headings:
-                lines.append("Existing sections: " + ", ".join(headings))
-            lines.append("Update only sections affected by the changed files. Preserve unaffected sections verbatim.")
-        if state.readme_was_truncated:
-            lines.append(
-                f"\nNote: Existing README was truncated to {MAX_README_CHARS} chars for context — "
-                "it continues beyond what is shown. Your output must be a complete, coherent README."
-            )
-        if "<!-- dp-keep -->" in state.existing_readme:
-            lines.append(
-                "\nNote: Sections marked <!-- dp-keep -->...<!-- /dp-keep --> will be restored after generation. "
-                "Do not reproduce or modify their content."
-            )
-        lines.append(f"\nExisting README:\n{state.existing_readme}")
+            targeted = build_targeted_readme_context(state.existing_readme, state.diff_changed_files)
+            if targeted != state.existing_readme:
+                lines.append(f"\nExisting README (targeted):\n{targeted}")
+            else:
+                headings = extract_readme_headings(state.existing_readme)
+                lines.append("\nChanged files:\n" + "\n".join(f"  {f}" for f in state.diff_changed_files))
+                if headings:
+                    lines.append("Existing sections: " + ", ".join(headings))
+                lines.append("Update only sections affected by the changed files. Preserve unaffected sections verbatim.")
+                if state.readme_was_truncated:
+                    lines.append(
+                        f"\nNote: Existing README was truncated to {MAX_README_CHARS} chars for context — "
+                        "it continues beyond what is shown. Your output must be a complete, coherent README."
+                    )
+                if "<!-- dp-keep -->" in state.existing_readme:
+                    lines.append(
+                        "\nNote: Sections marked <!-- dp-keep -->...<!-- /dp-keep --> will be restored after generation. "
+                        "Do not reproduce or modify their content."
+                    )
+                lines.append(f"\nExisting README:\n{state.existing_readme}")
+        else:
+            if state.readme_was_truncated:
+                lines.append(
+                    f"\nNote: Existing README was truncated to {MAX_README_CHARS} chars for context — "
+                    "it continues beyond what is shown. Your output must be a complete, coherent README."
+                )
+            if "<!-- dp-keep -->" in state.existing_readme:
+                lines.append(
+                    "\nNote: Sections marked <!-- dp-keep -->...<!-- /dp-keep --> will be restored after generation. "
+                    "Do not reproduce or modify their content."
+                )
+            lines.append(f"\nExisting README:\n{state.existing_readme}")
     else:
         lines.append("\nGenerate a fresh README from scratch.")
 
+    # 10. Style, scope, user remarks — dynamic tail
+    style_note = README_STYLE.get(state.style, README_STYLE["compact"])
+    lines.append(f"\nStyle: {style_note}")
+    lines.append(f"Scope: {scope_label}")
     if state.remarks:
         lines.append(f"\nUser instructions (follow exactly):\n{state.remarks}")
 
