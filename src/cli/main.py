@@ -4,6 +4,7 @@ import typer
 
 from src.cli import commands
 from src.cli.banner import print_banner
+from src.cli.commands.cache import cache_app
 from src.utils.log import get_logger, setup_logging
 from src.utils.ui import console
 
@@ -16,6 +17,7 @@ app = typer.Typer(
     invoke_without_command=True,
 )
 
+app.add_typer(cache_app, name="cache")
 app.command()(commands.docs)
 app.command()(commands.setup)
 app.command()(commands.config)
