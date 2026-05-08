@@ -88,6 +88,50 @@ async def test_empty_changed_files_non_initial_returns_empty_output(tmp_path: Pa
 
 
 @pytest.mark.asyncio
+async def test_clg_scout_passes_scope_dir_to_scout_node(tmp_path: Path) -> None:
+    """clg_scout computes scope_dir and passes it to scout_node for persistent caching."""
+    from src.schemas.scout_io import ScoutOutput
+
+    _make_repo(tmp_path)
+    state = _state(repo_path=tmp_path, changed_files=["src/main.py"])
+
+    captured_kwargs: list[dict[str, object]] = []
+
+    async def capturing_scout(**kwargs: object) -> ScoutOutput:
+        captured_kwargs.append(kwargs)
+        return ScoutOutput(summaries=[], grouped={}, cache_hits=0, tokens_used=0)
+
+    with patch(f"{_MOD}.scout_node", side_effect=capturing_scout):
+        import src.graph.nodes.changelog.scout as mod
+        result = await mod.clg_scout(state)
+
+    assert len(captured_kwargs) == 1
+    assert captured_kwargs[0].get("scope_dir") is not None
+
+
+@pytest.mark.asyncio
+async def test_clg_scout_initial_commit_passes_scope_dir(tmp_path: Path) -> None:
+    """Initial commit path also passes scope_dir for persistent caching."""
+    from src.schemas.scout_io import ScoutOutput
+
+    _make_repo(tmp_path)
+    state = _state(repo_path=tmp_path, is_initial_commit=True, changed_files=[])
+
+    captured_kwargs: list[dict[str, object]] = []
+
+    async def capturing_scout(**kwargs: object) -> ScoutOutput:
+        captured_kwargs.append(kwargs)
+        return ScoutOutput(summaries=[], grouped={}, cache_hits=0, tokens_used=0)
+
+    with patch(f"{_MOD}.scout_node", side_effect=capturing_scout):
+        import src.graph.nodes.changelog.scout as mod
+        result = await mod.clg_scout(state)
+
+    assert len(captured_kwargs) == 1
+    assert captured_kwargs[0].get("scope_dir") is not None
+
+
+@pytest.mark.asyncio
 async def test_token_count_accumulated(tmp_path: Path) -> None:
     _make_repo(tmp_path)
     state = _state(repo_path=tmp_path, changed_files=["src/main.py"])

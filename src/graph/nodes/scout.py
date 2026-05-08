@@ -190,7 +190,7 @@ async def scout_node(
     if is_cancelled():
         return ScoutOutput(summaries=[], grouped={}, cache_hits=0, tokens_used=0)
 
-    if mode == "clg" and changed_files is not None:
+    if changed_files is not None:
         files = [
             repo_root / f
             for f in changed_files

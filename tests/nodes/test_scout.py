@@ -227,6 +227,34 @@ async def test_scout_returns_empty_when_cancelled(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_scout_readme_mode_with_changed_files_scopes_to_changed_files(tmp_path: Path) -> None:
+    """changed_files takes precedence over full scan even in readme mode."""
+    from src.graph.nodes.scout import scout_node
+
+    (tmp_path / "changed.py").write_text("def changed(): pass\n")
+    (tmp_path / "unchanged.py").write_text("def unchanged(): pass\n")
+
+    captured_prompts: list[str] = []
+
+    async def capturing_llm(_model: str, _system: str, prompt: str, **_kw: object) -> tuple[None, str, int]:
+        captured_prompts.append(prompt)
+        return (None, "", 0)
+
+    with patch("src.graph.nodes.scout.acall_llm", side_effect=capturing_llm):
+        await scout_node(
+            target_path=tmp_path,
+            repo_root=tmp_path,
+            mode="readme",
+            changed_files=["changed.py"],
+            model_key="test-model",
+        )
+
+    all_prompt_text = "\n".join(captured_prompts)
+    assert "changed.py" in all_prompt_text
+    assert "unchanged.py" not in all_prompt_text
+
+
+@pytest.mark.asyncio
 async def test_scout_excludes_ignored_directories(tmp_path: Path) -> None:
     from src.graph.nodes.scout import scout_node
 
