@@ -101,3 +101,46 @@ def test_compacted_readme_sets_flag() -> None:
     result = _run(_state(rewrite=False), _patches(reader, readme_return=("# Long README", True)))
     assert result["readme_was_truncated"] is True  # type: ignore[index]
     assert len(result.get("warnings", [])) == 0  # type: ignore[index]
+
+
+def _subpackage_state() -> ReadmeState:
+    return ReadmeState(repo_path=Path("/repo"), target_path=Path("/repo/subpkg"))  # type: ignore[arg-type]
+
+
+def _subpackage_reader() -> MagicMock:
+    reader = _mock_reader()
+    reader.root = Path("/repo")
+    reader.resolve_target.return_value = Path("/repo/subpkg")
+    return reader
+
+
+def test_subpackage_strips_repo_level_fields() -> None:
+    reader = _subpackage_reader()
+    result = _run(_subpackage_state(), _patches(reader))
+
+    pc = result["project_context"]  # type: ignore[index]
+    assert pc.dependencies == []
+    assert pc.cli_scripts == {}
+    assert pc.license_id is None
+    assert result["remote_url"] is None  # type: ignore[index]
+
+
+def test_subpackage_preserves_name_version_description() -> None:
+    reader = _subpackage_reader()
+    result = _run(_subpackage_state(), _patches(reader))
+
+    pc = result["project_context"]  # type: ignore[index]
+    assert pc.name == "myproject"
+    assert pc.version == "1.2.3"
+    assert pc.description == "A test project."
+
+
+def test_root_level_preserves_all_fields() -> None:
+    reader = _mock_reader()
+    result = _run(_state(), _patches(reader))
+
+    pc = result["project_context"]  # type: ignore[index]
+    assert pc.dependencies == ["langgraph", "rich"]
+    assert pc.cli_scripts == {"dp": "src.cli.main:app"}
+    assert pc.license_id == "MIT"
+    assert result["remote_url"] == "https://github.com/user/repo"  # type: ignore[index]

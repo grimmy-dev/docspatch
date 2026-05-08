@@ -66,12 +66,12 @@ def build_prompt(
     batch_names = {catalog[fid].name for fid in batch_ids}
 
     same_file: list[str] = []
-    cross_file: list[str] = []
     for fn in catalog.values():
         if fn.name in batch_names or fn.kind != "function":
             continue
-        (same_file if fn.file_path in batch_files else cross_file).append(f"  {fn.signature}")
-    context = "\n".join((same_file + cross_file)[:20])
+        if fn.file_path in batch_files:
+            same_file.append(f"  {fn.signature}")
+    context = "\n".join(same_file[:10])
 
     by_file: dict[Path, list[FunctionMetadata]] = {}
     for fid in batch_ids:
