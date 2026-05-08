@@ -39,17 +39,24 @@ async def aggregator_node(
     *,
     grouped: dict[str, list[FileSummary]],
     model_key: str,
+    existing_unified: str | None = None,
 ) -> str:
     """Produce a unified context string from scout's directory-grouped summaries.
 
+    existing_unified: prior aggregated context; prepended to prompt so the LLM
+    can merge new summaries with what was already known.
     Returns empty string when grouped is empty or cancellation is requested.
     """
     if is_cancelled() or not grouped:
         return ""
 
     concat = _concat_grouped(grouped)
-    logger.debug("aggregator_node dirs=%d concat_len=%d", len(grouped), len(concat))
+    if existing_unified:
+        prompt = f"Existing unified context:\n{existing_unified}\n\nNew file summaries to incorporate:\n{concat}"
+    else:
+        prompt = concat
+    logger.debug("aggregator_node dirs=%d prompt_len=%d", len(grouped), len(prompt))
 
-    _, raw_text, tokens = await acall_llm(model_key, _AGGREGATOR_SYSTEM, concat)
+    _, raw_text, tokens = await acall_llm(model_key, _AGGREGATOR_SYSTEM, prompt)
     logger.debug("aggregator_node tokens=%d", tokens)
     return raw_text.strip()

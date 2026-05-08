@@ -182,17 +182,17 @@ def test_ensure_gitignore_appends_when_entry_absent(tmp_path: Path) -> None:
     ensure_gitignore(tmp_path)
 
     content = gitignore.read_text(encoding="utf-8")
-    assert ".docspatch/" in content
+    assert ".docspatch" in content
 
 
 def test_ensure_gitignore_idempotent_when_already_present(tmp_path: Path) -> None:
     gitignore = tmp_path / ".gitignore"
-    gitignore.write_text("__pycache__/\n.docspatch/\n", encoding="utf-8")
+    gitignore.write_text("__pycache__/\n.docspatch\n", encoding="utf-8")
 
     ensure_gitignore(tmp_path)
 
     content = gitignore.read_text(encoding="utf-8")
-    assert content.count(".docspatch/") == 1
+    assert content.count(".docspatch") == 1
 
 
 def test_ensure_gitignore_creates_file_when_user_confirms(tmp_path: Path) -> None:
@@ -200,7 +200,7 @@ def test_ensure_gitignore_creates_file_when_user_confirms(tmp_path: Path) -> Non
 
     gitignore = tmp_path / ".gitignore"
     assert gitignore.exists()
-    assert ".docspatch/" in gitignore.read_text(encoding="utf-8")
+    assert ".docspatch" in gitignore.read_text(encoding="utf-8")
 
 
 def test_ensure_gitignore_skips_creation_when_user_declines(tmp_path: Path) -> None:
@@ -217,4 +217,4 @@ def test_ensure_gitignore_no_duplicate_on_repeated_call(tmp_path: Path) -> None:
     ensure_gitignore(tmp_path)
 
     content = gitignore.read_text(encoding="utf-8")
-    assert content.count(".docspatch/") == 1
+    assert content.count(".docspatch") == 1

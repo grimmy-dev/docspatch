@@ -137,3 +137,25 @@ async def test_aggregator_makes_exactly_one_llm_call_for_many_directories() -> N
         await aggregator_node(grouped=grouped, model_key="test")
 
     assert call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# existing_unified included in LLM prompt
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_aggregator_includes_existing_unified_in_prompt() -> None:
+    from src.graph.nodes.aggregator import aggregator_node
+
+    grouped = {"src": [_summary("src/foo.py", "Foo module.", ["foo"])]}
+    captured: list[str] = []
+
+    async def capturing_llm(_model: str, _system: str, prompt: str, **_kw: object) -> tuple[None, str, int]:
+        captured.append(prompt)
+        return (None, "updated", 5)
+
+    with patch("src.graph.nodes.aggregator.acall_llm", side_effect=capturing_llm):
+        await aggregator_node(grouped=grouped, model_key="test", existing_unified="EXISTING CONTEXT HERE")
+
+    assert "EXISTING CONTEXT HERE" in captured[0]

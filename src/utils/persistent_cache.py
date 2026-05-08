@@ -36,7 +36,7 @@ __all__ = [
 
 _MANIFEST_NAME = "manifest.json"
 _UNIFIED_NAME = "unified.gz"
-_GITIGNORE_ENTRY = ".docspatch/"
+_GITIGNORE_ENTRY = ".docspatch"
 
 
 class ManifestEntry(TypedDict):
@@ -138,7 +138,7 @@ def ensure_gitignore(
     *,
     prompt_fn: Callable[[str], str] | None = None,
 ) -> None:
-    """Append .docspatch/ to .gitignore idempotently.
+    """Append .docspatch to .gitignore idempotently.
 
     When .gitignore is absent, calls prompt_fn (or input) to ask the user
     before creating it. No-op if the entry is already present.
@@ -147,7 +147,7 @@ def ensure_gitignore(
 
     if not gitignore.exists():
         ask = prompt_fn if prompt_fn is not None else input
-        answer = ask("No .gitignore found. Create one and add .docspatch/? [y/N] ").strip().lower()
+        answer = ask("No .gitignore found. Create one and add .docspatch? [y/N] ").strip().lower()
         if answer not in ("y", "yes"):
             return
         gitignore.write_text(f"{_GITIGNORE_ENTRY}\n", encoding="utf-8")
