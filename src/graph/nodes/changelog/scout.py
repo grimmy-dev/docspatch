@@ -32,7 +32,7 @@ async def clg_scout(state: ChangelogState) -> ChangelogScoutUpdate:
             target_path=root,
             repo_root=root,
             mode="readme",
-            model_key=cfg.defaults.model,
+            model_key=cfg.defaults.scout_model,
         )
     else:
         output = await scout_node(
@@ -40,7 +40,7 @@ async def clg_scout(state: ChangelogState) -> ChangelogScoutUpdate:
             repo_root=root,
             mode="clg",
             changed_files=state.changed_files,
-            model_key=cfg.defaults.model,
+            model_key=cfg.defaults.scout_model,
         )
 
     logger.debug(

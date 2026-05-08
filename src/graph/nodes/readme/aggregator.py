@@ -20,6 +20,6 @@ async def readme_aggregator(state: ReadmeState) -> ReadmeAggregatorUpdate:
         return {}
 
     cfg = load()
-    context = await aggregator_node(grouped=state.scout_output["grouped"], model_key=cfg.defaults.model)
+    context = await aggregator_node(grouped=state.scout_output["grouped"], model_key=cfg.defaults.scout_model)
     logger.debug("readme_aggregator: context_len=%d", len(context))
     return {"aggregated_context": context}

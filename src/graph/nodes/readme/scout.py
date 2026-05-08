@@ -43,7 +43,7 @@ async def readme_scout(state: ReadmeState) -> ReadmeScoutUpdate:
         mode="readme",
         changed_files=changed_files,
         existing_doc=state.existing_readme,
-        model_key=cfg.defaults.model,
+        model_key=cfg.defaults.scout_model,
         scope_dir=scope_dir,
     )
 

@@ -17,7 +17,7 @@ async def readme_llm(state: ReadmeState) -> ReadmeLLMUpdate:
 
     cfg = load()
     max_tokens = cfg.defaults.readme_tokens_compact if state.style == "compact" else cfg.defaults.readme_tokens_detailed
-    _, raw_text, tokens = await acall_llm(cfg.defaults.review_model, README_SYSTEM, build_readme_prompt(state), max_tokens=max_tokens)
+    _, raw_text, tokens = await acall_llm(cfg.defaults.writer_model, README_SYSTEM, build_readme_prompt(state), max_tokens=max_tokens)
 
     logger.debug("readme_llm: %d tokens, %d chars output", tokens, len(raw_text))
     return {"generated_readme": raw_text, "token_actual": tokens}

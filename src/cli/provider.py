@@ -49,7 +49,8 @@ def configure_provider(cfg: AppConfig) -> AppConfig | None:
 
     Returns:
         An updated AppConfig or None."""
-    console.print(f"[dim]Current: {cfg.defaults.provider_key} · model: {cfg.defaults.model} · review: {cfg.defaults.review_model}[/dim]\n")
+    d = cfg.defaults
+    console.print(f"[dim]Current: {d.provider_key} · scout: {d.scout_model} · writer: {d.writer_model}[/dim]\n")
 
     name = questionary.select("Provider:", choices=list(PROVIDERS.keys()), style=Q_STYLE).ask()
     if name is None:
@@ -70,14 +71,14 @@ def configure_provider(cfg: AppConfig) -> AppConfig | None:
         if not api_key:
             return None
 
-    model = pick_model("Generation model:", provider.models)
-    if model is None:
+    scout = pick_model("Scout model:", provider.scout_models)
+    if scout is None:
         return None
 
-    rev = pick_model("Review model:", provider.review_models)
-    if rev is None:
+    writer = pick_model("Writer model:", provider.writer_models)
+    if writer is None:
         return None
 
     new_keys = cfg.keys.model_copy(update={provider.key_field: api_key})
-    new_defaults: AppDefaults = cfg.defaults.model_copy(update={"provider_key": name, "model": model, "review_model": rev})
+    new_defaults: AppDefaults = cfg.defaults.model_copy(update={"provider_key": name, "scout_model": scout, "writer_model": writer})
     return cfg.model_copy(update={"defaults": new_defaults, "keys": new_keys})

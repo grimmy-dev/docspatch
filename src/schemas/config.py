@@ -9,8 +9,8 @@ class AppDefaults(BaseModel):
     """User-configurable defaults persisted to config.toml."""
 
     style: str = "compact"
-    model: str = "gemini-2.5-flash"
-    review_model: str = "gemini-2.5-pro"
+    scout_model: str = "gemini-2.5-flash-lite"
+    writer_model: str = "gemini-2.5-pro"
     provider_key: str = "Google Gemini"
     batch_size: int = 5
     batch_max_lines: int = 500
@@ -45,5 +45,5 @@ class ProviderConfig(BaseModel):
     """One entry in the provider catalogue defining available models."""
 
     key_field: str
-    models: list[str]
-    review_models: list[str]
+    scout_models: list[str]
+    writer_models: list[str]

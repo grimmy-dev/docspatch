@@ -20,6 +20,6 @@ async def clg_aggregator(state: ChangelogState) -> ChangelogAggregatorUpdate:
         return {}
 
     cfg = load()
-    context = await aggregator_node(grouped=state.scout_output["grouped"], model_key=cfg.defaults.model)
+    context = await aggregator_node(grouped=state.scout_output["grouped"], model_key=cfg.defaults.scout_model)
     logger.debug("clg_aggregator: context_len=%d", len(context))
     return {"aggregated_context": context}

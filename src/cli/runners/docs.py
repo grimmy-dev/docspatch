@@ -43,7 +43,7 @@ async def run_docstring(graph: CompiledDocpatchGraph, state: DocpatchState, conf
         error(f"State validation failed: {e}")
         raise typer.Exit(code=1) from None
 
-    preflight_model = None if state.dry_run else load().defaults.model
+    preflight_model = None if state.dry_run else load().defaults.writer_model
     dry_skip = frozenset({"batcher", "collect_batches", "writer", "cache_update"}) if state.dry_run else frozenset()
 
     generation_started = False

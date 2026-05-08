@@ -83,7 +83,7 @@ async def docwriter_single(state: DocpatchState) -> BatchDocsUpdate:
     prompt = build_prompt(st.current_batch, st.catalog, style, tokens_per_fn, file_slices)
     batch_names = {st.catalog[fid].name for fid in st.current_batch}
 
-    parsed, raw_text, tokens = await acall_llm(cfg.defaults.model, system, prompt, output_model=BatchDocstringOutput)
+    parsed, raw_text, tokens = await acall_llm(cfg.defaults.writer_model, system, prompt, output_model=BatchDocstringOutput)
     items = (
         [i for i in parsed.items if i.name in batch_names and i.docstring.strip()]
         if parsed
@@ -146,7 +146,7 @@ async def docwriter_rerun(state: DocpatchState) -> RerunDocsUpdate:
     system = DOCSTRING_SYSTEM.get(style, DOCSTRING_SYSTEM["compact"])
     tokens_per_fn = cfg.defaults.tokens_per_fn_compact if style == "compact" else cfg.defaults.tokens_per_fn_detailed
 
-    tasks = [_process_rerun_batch(fid, st, style, system, cfg.defaults.model, tokens_per_fn) for fid in st.rerun_docs]
+    tasks = [_process_rerun_batch(fid, st, style, system, cfg.defaults.writer_model, tokens_per_fn) for fid in st.rerun_docs]
     results = await asyncio.gather(*tasks)
 
     generated_docs: dict[str, str] = {}

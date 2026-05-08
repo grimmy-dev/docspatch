@@ -19,7 +19,7 @@ async def clg_llm(state: ChangelogState) -> ChangelogLLMUpdate:
 
     cfg = load()
     _, raw_text, tokens = await acall_llm(
-        cfg.defaults.review_model,
+        cfg.defaults.writer_model,
         CHANGELOG_SYSTEM,
         build_clg_prompt(state),
         max_tokens=cfg.defaults.changelog_tokens,

@@ -25,7 +25,7 @@ CLG_NODE_MESSAGES: dict[str, str] = {
 
 async def run_clg(graph: CompiledChangelogGraph, state: ChangelogState, config: GraphConfig) -> None:
     """Async orchestration of the changelog pipeline."""
-    preflight_model = None if state.dry_run else load().defaults.review_model
+    preflight_model = None if state.dry_run else load().defaults.writer_model
     dry_skip = frozenset({"clg_llm", "clg_writer"}) if state.dry_run else frozenset()
 
     async def clg_review_handler(iv: Any) -> Command[Any] | None:
