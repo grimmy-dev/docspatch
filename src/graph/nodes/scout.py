@@ -14,6 +14,7 @@ from src.utils.ast_compress import compress_file
 from src.utils.fs import hash_content
 from src.utils.llm.caller import acall_llm, is_cancelled
 from src.utils.log import get_logger
+from src.utils.scout_cache import flush_persistent_results, pre_load_persistent_hits
 
 __all__ = ["scout_node"]
 
@@ -35,6 +36,8 @@ _SCOUT_CLG_SYSTEM = (
     "Skip trivial edits: renamed variables, removed comments, reformatted lines. "
     "Focus only on behavioural changes."
 )
+
+_PROMPT_VERSION: str = hash_content(_SCOUT_README_SYSTEM + _SCOUT_CLG_SYSTEM)
 
 
 class _FileAnalysis(BaseModel):
@@ -153,11 +156,14 @@ async def scout_node(
     existing_doc: str | None = None,
     model_key: str,
     run_cache: dict[str, FileSummary] | None = None,
+    scope_dir: Path | None = None,
+    ttl_days: int = 7,
 ) -> ScoutOutput:
     """Analyse Python files grouped by directory with one LLM call per group.
 
     readme mode: scans all .py files under target_path.
     clg mode: scopes to changed_files list, reads current file state.
+    scope_dir: if provided, uses persistent manifest cache across runs.
     """
     if is_cancelled():
         return ScoutOutput(summaries=[], grouped={}, cache_hits=0, tokens_used=0)
@@ -174,11 +180,20 @@ async def scout_node(
     if not files:
         return ScoutOutput(summaries=[], grouped={}, cache_hits=0, tokens_used=0)
 
+    if scope_dir is not None:
+        hit_cache, all_file_data, manifest, file_summaries = pre_load_persistent_hits(
+            scope_dir, files, repo_root, model_key, _PROMPT_VERSION
+        )
+        effective_cache: dict[str, FileSummary] = {**hit_cache, **(run_cache or {})}
+    else:
+        effective_cache = run_cache  # type: ignore[assignment]
+        all_file_data, manifest, file_summaries = [], {}, {}
+
     groups = _group_by_directory(files, repo_root)
     dir_keys = list(groups.keys())
     logger.debug("scout_node mode=%s groups=%d files=%d", mode, len(groups), len(files))
 
-    calls = [_analyse_group(dk, groups[dk], repo_root, mode, model_key, run_cache) for dk in dir_keys]
+    calls = [_analyse_group(dk, groups[dk], repo_root, mode, model_key, effective_cache) for dk in dir_keys]
     results = await asyncio.gather(*calls)
 
     all_summaries: list[FileSummary] = []
@@ -191,6 +206,9 @@ async def scout_node(
         grouped[dir_key] = summaries
         total_tokens += tokens
         total_hits += hits
+
+    if scope_dir is not None:
+        flush_persistent_results(scope_dir, all_file_data, effective_cache, manifest, file_summaries, ttl_days)
 
     return ScoutOutput(
         summaries=all_summaries,
