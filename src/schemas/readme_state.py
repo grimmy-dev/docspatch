@@ -7,7 +7,8 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import Field
 
 from src.schemas.pipeline_state import PipelineState
-from src.schemas.readme_io import ProjectContext, UnderstandCache
+from src.schemas.readme_io import ProjectContext
+from src.schemas.scout_io import ScoutOutput
 from src.utils.git.reader import GitSignals
 from src.utils.project.usage import UsageExample
 
@@ -41,9 +42,9 @@ class ReadmeState(PipelineState):
     test_coverage: str = ""
     usage_examples: list[UsageExample] = Field(default_factory=list)
 
-    # Understanding cache — written by readme_understand
-    project_understanding: str | None = None
-    understand_cache: UnderstandCache = Field(default_factory=UnderstandCache)
+    # Scout + aggregator output
+    scout_output: ScoutOutput | None = None
+    aggregated_context: str = ""
 
     # Pipeline state
     generated_readme: str = ""  # written by: readme_llm

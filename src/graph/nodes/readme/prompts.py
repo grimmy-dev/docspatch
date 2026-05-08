@@ -7,7 +7,7 @@ from src.schemas.readme_state import ReadmeState
 from src.utils.project.format import MAX_README_CHARS, detect_badges
 from src.utils.readme.analysis import build_targeted_readme_context, extract_readme_headings
 
-__all__ = ["README_STYLE", "README_SYSTEM", "README_UNDERSTAND_SYSTEM", "build_readme_prompt"]
+__all__ = ["README_STYLE", "README_SYSTEM", "build_readme_prompt"]
 
 README_SYSTEM: str = (
     "You are an expert technical writer and software architect. "
@@ -36,12 +36,6 @@ README_SYSTEM: str = (
     "  If 'Changed files' are listed → update ONLY sections affected by those files; copy all others verbatim.\n"
     "  If no changed files are listed → rewrite the entire README.\n\n"
     "OUTPUT: Return only the final Markdown. No preamble, no explanations, no surrounding code fences."
-)
-
-README_UNDERSTAND_SYSTEM: str = (
-    "You are a code analyst. Read the provided module code and describe its purpose in one sentence. "
-    "Be specific to this codebase — no generic descriptions. "
-    "Focus on what this module does for the user and how it fits in the system."
 )
 
 README_STYLE: dict[str, str] = {
@@ -76,9 +70,9 @@ def build_readme_prompt(state: ReadmeState) -> str:
     is_scoped, scope_label = _compute_scope(state)
     lines: list[str] = []
 
-    # 1. Project understanding — most stable (produced by understand node)
-    if state.project_understanding:
-        lines.append(f"Module understanding:\n{state.project_understanding}\n")
+    # 1. Aggregated context — most stable (produced by scout + aggregator nodes)
+    if state.aggregated_context:
+        lines.append(f"Module understanding:\n{state.aggregated_context}\n")
 
     # 2–3. Project metadata + dependencies (stable)
     ctx = state.project_context
@@ -102,7 +96,7 @@ def build_readme_prompt(state: ReadmeState) -> str:
     # 4–5. Dir tree / public API (change occasionally)
     if state.dir_tree:
         lines.append(f"\nDirectory structure:\n{state.dir_tree}")
-    if not state.project_understanding and state.public_api:
+    if not state.aggregated_context and state.public_api:
         module_cap = 20 if state.style == "compact" else 40
         symbol_cap = 8 if state.style == "compact" else 15
         api_lines = [f"  {mod}: {', '.join(syms[:symbol_cap])}" for mod, syms in list(state.public_api.items())[:module_cap]]

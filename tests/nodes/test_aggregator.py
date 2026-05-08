@@ -1,6 +1,5 @@
 """Tests for aggregator node — unified context document from scout grouped output."""
 
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest

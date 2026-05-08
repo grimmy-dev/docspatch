@@ -15,19 +15,19 @@ def _state(**kwargs: object) -> ReadmeState:
 
 
 def test_understanding_appears_before_git_signals() -> None:
-    state = _state(project_understanding="summary text", git_signals=_SIGNALS)
+    state = _state(aggregated_context="summary text", git_signals=_SIGNALS)
     prompt = build_readme_prompt(state)
     assert prompt.index("summary text") < prompt.index("Git signals:")
 
 
 def test_understanding_appears_before_existing_readme() -> None:
-    state = _state(project_understanding="summary text", existing_readme="# Old README")
+    state = _state(aggregated_context="summary text", existing_readme="# Old README")
     prompt = build_readme_prompt(state)
     assert prompt.index("summary text") < prompt.index("# Old README")
 
 
 def test_style_appears_after_understanding() -> None:
-    state = _state(project_understanding="summary text", style="compact")
+    state = _state(aggregated_context="summary text", style="compact")
     prompt = build_readme_prompt(state)
     assert prompt.index("Style:") > prompt.index("summary text")
 
@@ -61,12 +61,12 @@ def test_scope_label_present_in_output() -> None:
 
 
 def test_public_api_fallback_when_no_understanding() -> None:
-    state = _state(public_api={"src/foo.py": ["bar"]}, project_understanding=None)
+    state = _state(public_api={"src/foo.py": ["bar"]})
     prompt = build_readme_prompt(state)
     assert "Public API" in prompt
 
 
 def test_public_api_suppressed_when_understanding_present() -> None:
-    state = _state(public_api={"src/foo.py": ["bar"]}, project_understanding="summary")
+    state = _state(public_api={"src/foo.py": ["bar"]}, aggregated_context="summary")
     prompt = build_readme_prompt(state)
     assert "Public API" not in prompt

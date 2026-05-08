@@ -8,8 +8,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.schemas.scout_io import FileSummary
-
 
 def _group_analysis(path: str, summary: str = "desc") -> MagicMock:
     entry = MagicMock()

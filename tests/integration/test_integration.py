@@ -106,18 +106,21 @@ async def test_clg_pipeline_interrupts_with_generated_entry(git_repo: Path) -> N
 
 @pytest.mark.asyncio
 async def test_readme_pipeline_interrupts_with_generated_readme(git_repo: Path) -> None:
-    """README pipeline routes context → understand → llm → readme review interrupt."""
+    """README pipeline routes context → scout → aggregator → llm → readme review interrupt."""
     from src.graph.graphs.readme_graph import build
     from src.schemas.readme_state import ReadmeState
 
     graph = build()
     state = ReadmeState(repo_path=git_repo, target_path=git_repo, rewrite=True)
 
-    understand_mock = AsyncMock(return_value=(None, "A minimal test package.", 30))
+    # scout returns _GroupAnalysis with None parsed → empty FileSummary entries; aggregator returns unified string
+    scout_mock = AsyncMock(return_value=(None, "", 30))
+    aggregator_mock = AsyncMock(return_value=(None, "Aggregated context for testpkg.", 20))
     generate_mock = AsyncMock(return_value=(None, "# testpkg\n\nA test package.", 80))
 
     with (
-        patch("src.graph.nodes.readme.understand.acall_llm", understand_mock),
+        patch("src.graph.nodes.scout.acall_llm", scout_mock),
+        patch("src.graph.nodes.aggregator.acall_llm", aggregator_mock),
         patch("src.graph.nodes.readme.generate.acall_llm", generate_mock),
     ):
         interrupt_val = await _first_interrupt(graph, state.model_dump(), _config())

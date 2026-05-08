@@ -4,27 +4,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TypedDict
 
+from src.schemas.scout_io import ScoutOutput
 from src.utils.git.reader import GitSignals
 from src.utils.project.usage import UsageExample
 
 __all__ = [
     "ProjectContext",
+    "ReadmeAggregatorUpdate",
     "ReadmeContextUpdate",
     "ReadmeDiffFilterUpdate",
     "ReadmeLLMUpdate",
     "ReadmePreviewUpdate",
-    "ReadmeUnderstandUpdate",
+    "ReadmeScoutUpdate",
     "ReadmeWriterUpdate",
-    "UnderstandCache",
 ]
-
-
-@dataclass
-class UnderstandCache:
-    """Per-module summaries and content hashes produced by readme_understand."""
-
-    summaries: dict[str, str] = field(default_factory=dict)
-    hashes: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -82,9 +75,14 @@ class ReadmeWriterUpdate(TypedDict, total=False):
     warnings: list[str]
 
 
-class ReadmeUnderstandUpdate(TypedDict, total=False):
-    """Returned by readme_understand."""
+class ReadmeScoutUpdate(TypedDict, total=False):
+    """Returned by readme_scout."""
 
-    project_understanding: str | None
-    understand_cache: UnderstandCache
+    scout_output: ScoutOutput
     token_actual: int
+
+
+class ReadmeAggregatorUpdate(TypedDict, total=False):
+    """Returned by readme_aggregator."""
+
+    aggregated_context: str

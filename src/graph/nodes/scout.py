@@ -96,7 +96,7 @@ async def _analyse_group(
     run_cache: dict[str, FileSummary] | None,
 ) -> tuple[list[FileSummary], int, int]:
     """AST-compress files in a directory group, skip cached, call LLM for fresh files."""
-    all_data: list[tuple[str, str, str]] = []  # (rel_path, skeleton, content_hash)
+    all_data: list[tuple[str, str, str]] =[]  # (rel_path, skeleton, content_hash)
     for f in files:
         try:
             rel = str(f.relative_to(repo_root))
@@ -106,12 +106,22 @@ async def _analyse_group(
         all_data.append((rel, skeleton, hash_content(skeleton)))
 
     cached_summaries: list[FileSummary] = []
-    fresh_data: list[tuple[str, str, str]] = []
+    fresh_data: list[tuple[str, str, str]] =[]
     cache_hits = 0
 
     for rel_path, skeleton, content_hash in all_data:
         if run_cache is not None and content_hash in run_cache:
-            cached_summaries.append(run_cache[content_hash])
+            # FIX 1: Copy the cached summary and update the path to the current file's rel_path.
+            # This ensures moved files or identical files (e.g. empty __init__.py) get the correct path.
+            cached_entry = run_cache[content_hash]
+            
+            # Assuming FileSummary is a TypedDict as per PRD Issue 3
+            summary = FileSummary(
+                path=rel_path,
+                summary=cached_entry["summary"],
+                key_symbols=cached_entry["key_symbols"]
+            )
+            cached_summaries.append(summary)
             cache_hits += 1
         else:
             fresh_data.append((rel_path, skeleton, content_hash))
@@ -125,15 +135,27 @@ async def _analyse_group(
 
     parsed, _, tokens = await acall_llm(model_key, system, prompt, output_model=_GroupAnalysis)
 
-    fresh_summaries: list[FileSummary] = []
+    fresh_summaries: list[FileSummary] =[]
+    
     if parsed is not None:
-        analyses = parsed.files
-        for i, (rel_path, _, content_hash) in enumerate(fresh_data):
-            if i < len(analyses):
-                a = analyses[i]
-                summary = FileSummary(path=a.path, summary=a.summary, key_symbols=a.key_symbols)
+        # FIX 2: Create a lookup dictionary by path to prevent index-mismatching
+        parsed_dict = {a.path: a for a in parsed.files}
+        
+        for rel_path, _, content_hash in fresh_data:
+            # Try to match by exact path, fallback to just the filename
+            matched = parsed_dict.get(rel_path)
+            if not matched:
+                fname = Path(rel_path).name
+                for p_path, p_val in parsed_dict.items():
+                    if Path(p_path).name == fname:
+                        matched = p_val
+                        break
+            
+            if matched:
+                summary = FileSummary(path=rel_path, summary=matched.summary, key_symbols=matched.key_symbols)
             else:
                 summary = FileSummary(path=rel_path, summary="", key_symbols=[])
+                
             if run_cache is not None:
                 run_cache[content_hash] = summary
             fresh_summaries.append(summary)
