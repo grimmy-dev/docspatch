@@ -6,7 +6,6 @@ __all__ = [
     "ChangelogContextUpdate",
     "ChangelogLLMUpdate",
     "ChangelogPreviewUpdate",
-    "ChangelogReviewInterrupt",
     "ChangelogWriterUpdate",
 ]
 
@@ -43,10 +42,3 @@ class ChangelogWriterUpdate(TypedDict, total=False):
     """Returned by clg_writer."""
 
     warnings: list[str]
-
-
-class ChangelogReviewInterrupt(TypedDict):
-    """Interrupt payload passed to the CLI review handler."""
-
-    type: str
-    content: str

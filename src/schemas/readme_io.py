@@ -13,10 +13,18 @@ __all__ = [
     "ReadmeDiffFilterUpdate",
     "ReadmeLLMUpdate",
     "ReadmePreviewUpdate",
-    "ReadmeReviewInterrupt",
     "ReadmeUnderstandUpdate",
     "ReadmeWriterUpdate",
+    "UnderstandCache",
 ]
+
+
+@dataclass
+class UnderstandCache:
+    """Per-module summaries and content hashes produced by readme_understand."""
+
+    summaries: dict[str, str] = field(default_factory=dict)
+    hashes: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -78,13 +86,5 @@ class ReadmeUnderstandUpdate(TypedDict, total=False):
     """Returned by readme_understand."""
 
     project_understanding: str | None
-    module_summaries: dict[str, str]
-    module_hashes: dict[str, str]
+    understand_cache: UnderstandCache
     token_actual: int
-
-
-class ReadmeReviewInterrupt(TypedDict):
-    """Interrupt payload passed to the CLI review handler."""
-
-    type: str
-    content: str

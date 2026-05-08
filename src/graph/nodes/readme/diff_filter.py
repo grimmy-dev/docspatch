@@ -1,7 +1,5 @@
 """readme_diff_filter node — decides if README needs updating based on git diff."""
 
-from pathlib import Path
-
 from src.schemas.readme_io import ReadmeDiffFilterUpdate
 from src.schemas.readme_state import ReadmeState
 from src.utils.diff.semantics import filter_diff_noise

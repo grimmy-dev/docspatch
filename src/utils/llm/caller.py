@@ -3,7 +3,8 @@
 Shell layer — all network I/O lives here. Nodes call acall_llm only.
 """
 
-import threading
+import asyncio
+import contextvars
 from typing import Any, cast
 
 from langchain_core.messages import BaseMessage
@@ -17,7 +18,16 @@ __all__ = ["acall_llm", "get_llm", "is_cancelled", "request_cancel", "reset_canc
 
 logger = get_logger(__name__)
 
-CANCEL_EVENT = threading.Event()
+_cancel_var: contextvars.ContextVar[asyncio.Event] = contextvars.ContextVar("_cancel_var")
+
+
+def _event() -> asyncio.Event:
+    try:
+        return _cancel_var.get()
+    except LookupError:
+        ev = asyncio.Event()
+        _cancel_var.set(ev)
+        return ev
 
 
 def _extract_text(content: str | list[str | dict[str, object]]) -> str:
@@ -48,17 +58,17 @@ def _extract_tokens(response: BaseMessage) -> int:
 
 def request_cancel() -> None:
     """Signal all in-flight LLM calls to abort."""
-    CANCEL_EVENT.set()
+    _event().set()
 
 
 def reset_cancel() -> None:
-    """Clear the cancellation flag before starting a new run."""
-    CANCEL_EVENT.clear()
+    """Install a fresh cancellation event for the upcoming run."""
+    _cancel_var.set(asyncio.Event())
 
 
 def is_cancelled() -> bool:
     """Return True when a cancellation has been requested."""
-    return CANCEL_EVENT.is_set()
+    return _event().is_set()
 
 
 async def acall_llm[T: BaseModel](
@@ -83,7 +93,7 @@ async def acall_llm[T: BaseModel](
     Raises:
         LLMError: If an error occurs during the LLM call.
     """
-    if is_cancelled():
+    if _event().is_set():
         return None, "", 0
 
     from langchain_core.messages import HumanMessage, SystemMessage

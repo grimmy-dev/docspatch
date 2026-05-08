@@ -2,10 +2,10 @@
 
 from langgraph.types import interrupt
 
-from src.schemas.changelog_io import ChangelogPreviewUpdate, ChangelogReviewInterrupt
+from src.schemas.changelog_io import ChangelogPreviewUpdate
 from src.schemas.changelog_state import ChangelogState
-from src.schemas.graph_io import PreviewUpdate, ReviewInterrupt, ReviewSessionResult
-from src.schemas.readme_io import ReadmePreviewUpdate, ReadmeReviewInterrupt
+from src.schemas.graph_io import ContentReviewInterrupt, PreviewUpdate, ReviewInterrupt, ReviewSessionResult
+from src.schemas.readme_io import ReadmePreviewUpdate
 from src.schemas.readme_state import ReadmeState
 from src.schemas.state import DocpatchState
 
@@ -42,7 +42,7 @@ def readme_preview_all(state: ReadmeState) -> ReadmePreviewUpdate:
     if not state.generated_readme:
         return {"accepted_readme": None}
 
-    result: str | None = interrupt(ReadmeReviewInterrupt(type="readme_review", content=state.generated_readme))
+    result: str | None = interrupt(ContentReviewInterrupt(type="readme_review", content=state.generated_readme))
     return {"accepted_readme": result}
 
 
@@ -51,5 +51,5 @@ def clg_preview_all(state: ChangelogState) -> ChangelogPreviewUpdate:
     if not state.generated_entry:
         return {"accepted_entry": None}
 
-    result: str | None = interrupt(ChangelogReviewInterrupt(type="clg_review", content=state.generated_entry))
+    result: str | None = interrupt(ContentReviewInterrupt(type="clg_review", content=state.generated_entry))
     return {"accepted_entry": result}

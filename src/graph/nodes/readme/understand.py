@@ -3,12 +3,12 @@
 import asyncio
 from pathlib import Path
 
-from src.schemas.readme_io import ReadmeUnderstandUpdate
+from src.graph.nodes.readme.prompts import README_UNDERSTAND_SYSTEM
+from src.schemas.readme_io import ReadmeUnderstandUpdate, UnderstandCache
 from src.schemas.readme_state import ReadmeState
 from src.utils.config import load
 from src.utils.fs import hash_content
 from src.utils.llm.caller import acall_llm, is_cancelled
-from src.graph.nodes.readme.prompts import README_UNDERSTAND_SYSTEM
 from src.utils.log import get_logger
 
 __all__ = [
@@ -138,7 +138,7 @@ async def readme_understand(state: ReadmeState) -> ReadmeUnderstandUpdate:
     raw_contents = await asyncio.gather(*[_read_module_content(base / mod) for mod in selected])
     contents: dict[str, str] = dict(zip(selected, raw_contents, strict=True))
 
-    fresh, cached = partition_modules(selected, state.module_hashes, contents)
+    fresh, cached = partition_modules(selected, state.understand_cache.hashes, contents)
     logger.debug(
         "readme_understand: skipped %d unchanged modules, re-understood %d changed modules",
         len(cached),
@@ -147,17 +147,13 @@ async def readme_understand(state: ReadmeState) -> ReadmeUnderstandUpdate:
 
     fresh_summaries, tokens = await _summarise_fresh(fresh, contents, state.public_api, cfg.defaults.model)
 
-    new_hashes = {
-        **state.module_hashes,
-        **{mod: hash_content(contents[mod]) for mod in selected},
-    }
-    new_summaries = {**state.module_summaries, **fresh_summaries}
+    new_hashes = {**state.understand_cache.hashes, **{mod: hash_content(contents[mod]) for mod in selected}}
+    new_summaries = {**state.understand_cache.summaries, **fresh_summaries}
     ordered = {mod: new_summaries[mod] for mod in selected if mod in new_summaries}
     project_understanding = build_understanding_string(ordered) if ordered else None
 
     return {
         "project_understanding": project_understanding,
-        "module_summaries": new_summaries,
-        "module_hashes": new_hashes,
+        "understand_cache": UnderstandCache(summaries=new_summaries, hashes=new_hashes),
         "token_actual": tokens,
     }

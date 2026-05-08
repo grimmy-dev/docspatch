@@ -18,6 +18,7 @@ __all__ = [
     "Checkpointer",
     "CollectBatchesUpdate",
     "CompiledDocpatchGraph",
+    "ContentReviewInterrupt",
     "DocpatchGraph",
     "FeedbackUpdate",
     "FilePickInterrupt",
@@ -50,6 +51,13 @@ class SizeCheckInterrupt(TypedDict):
 class FilePickInterrupt(TypedDict):
     type: str
     files: list[str]
+
+
+class ContentReviewInterrupt(TypedDict):
+    """Interrupt payload for single-document review (README, changelog)."""
+
+    type: str
+    content: str
 
 
 class ReviewInterrupt(TypedDict):

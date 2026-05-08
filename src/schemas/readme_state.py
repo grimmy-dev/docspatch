@@ -7,7 +7,7 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import Field
 
 from src.schemas.pipeline_state import PipelineState
-from src.schemas.readme_io import ProjectContext
+from src.schemas.readme_io import ProjectContext, UnderstandCache
 from src.utils.git.reader import GitSignals
 from src.utils.project.usage import UsageExample
 
@@ -43,8 +43,7 @@ class ReadmeState(PipelineState):
 
     # Understanding cache — written by readme_understand
     project_understanding: str | None = None
-    module_summaries: dict[str, str] = Field(default_factory=dict)
-    module_hashes: dict[str, str] = Field(default_factory=dict)
+    understand_cache: UnderstandCache = Field(default_factory=UnderstandCache)
 
     # Pipeline state
     generated_readme: str = ""  # written by: readme_llm

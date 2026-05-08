@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from src.schemas.readme_io import UnderstandCache
 from src.schemas.readme_state import ReadmeState
 
 
@@ -152,7 +153,8 @@ async def test_fresh_module_triggers_llm_call() -> None:
         result = await readme_understand(state)
 
     mock_llm.assert_called_once()
-    assert result.get("module_summaries", {}).get("src/foo.py") == "Handles foo operations."
+    cache: UnderstandCache = result.get("understand_cache") or UnderstandCache()
+    assert cache.summaries.get("src/foo.py") == "Handles foo operations."
     assert result.get("token_actual") == 15
 
 
@@ -165,8 +167,10 @@ async def test_cached_module_skips_llm_call() -> None:
     public_api = {"src/bar.py": ["func_a"]}
     state = _state(
         public_api=public_api,
-        module_summaries={"src/bar.py": "Existing cached summary."},
-        module_hashes={"src/bar.py": existing_hash},
+        understand_cache=UnderstandCache(
+            summaries={"src/bar.py": "Existing cached summary."},
+            hashes={"src/bar.py": existing_hash},
+        ),
     )
 
     mock_llm = AsyncMock()
@@ -177,7 +181,8 @@ async def test_cached_module_skips_llm_call() -> None:
         result = await readme_understand(state)
 
     mock_llm.assert_not_called()
-    assert result.get("module_summaries", {}).get("src/bar.py") == "Existing cached summary."
+    cache: UnderstandCache = result.get("understand_cache") or UnderstandCache()
+    assert cache.summaries.get("src/bar.py") == "Existing cached summary."
     assert result.get("token_actual", 0) == 0
 
 
@@ -213,8 +218,10 @@ async def test_mixed_fresh_and_cached_merges_correctly() -> None:
     public_api = {"cached_mod.py": ["existing_fn"], "fresh_mod.py": ["new_fn"]}
     state = _state(
         public_api=public_api,
-        module_summaries={"cached_mod.py": "Cached summary."},
-        module_hashes={"cached_mod.py": existing_hash},
+        understand_cache=UnderstandCache(
+            summaries={"cached_mod.py": "Cached summary."},
+            hashes={"cached_mod.py": existing_hash},
+        ),
     )
 
     async def fake_read(path: object) -> str:
@@ -228,7 +235,7 @@ async def test_mixed_fresh_and_cached_merges_correctly() -> None:
         result = await readme_understand(state)
 
     mock_llm.assert_called_once()
-    summaries = result.get("module_summaries", {})
-    assert summaries.get("cached_mod.py") == "Cached summary."
-    assert summaries.get("fresh_mod.py") == "Fresh summary."
+    cache: UnderstandCache = result.get("understand_cache") or UnderstandCache()
+    assert cache.summaries.get("cached_mod.py") == "Cached summary."
+    assert cache.summaries.get("fresh_mod.py") == "Fresh summary."
     assert result.get("token_actual") == 8

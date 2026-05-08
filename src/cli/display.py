@@ -4,13 +4,13 @@ from pathlib import Path
 
 from rich.table import Table
 
+from src.graph.nodes.changelog.prompts import CHANGELOG_SYSTEM
+from src.graph.nodes.readme.prompts import README_SYSTEM
 from src.schemas.changelog_state import ChangelogState
 from src.schemas.function import FunctionMetadata
 from src.schemas.readme_state import ReadmeState
 from src.schemas.state import DocpatchState
 from src.utils.config import load
-from src.graph.nodes.changelog.prompts import CHANGELOG_SYSTEM
-from src.graph.nodes.readme.prompts import README_SYSTEM
 from src.utils.ui import console, short_path
 
 
