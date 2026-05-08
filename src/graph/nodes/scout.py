@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from src.schemas.scout_io import FileSummary, ScoutMode, ScoutOutput
 from src.utils.ast_compress import compress_file
+from src.utils.fs import hash_content
 from src.utils.llm.caller import acall_llm, is_cancelled
 from src.utils.log import get_logger
 
@@ -89,31 +90,58 @@ async def _analyse_group(
     repo_root: Path,
     mode: ScoutMode,
     model_key: str,
-) -> tuple[list[FileSummary], int]:
-    """AST-compress all files in a directory group, call LLM once, return summaries."""
-    file_skeletons: list[tuple[str, str]] = []
+    run_cache: dict[str, FileSummary] | None,
+) -> tuple[list[FileSummary], int, int]:
+    """AST-compress files in a directory group, skip cached, call LLM for fresh files."""
+    all_data: list[tuple[str, str, str]] = []  # (rel_path, skeleton, content_hash)
     for f in files:
         try:
             rel = str(f.relative_to(repo_root))
         except ValueError:
             rel = f.name
         skeleton = compress_file(f) or ""
-        file_skeletons.append((rel, skeleton))
+        all_data.append((rel, skeleton, hash_content(skeleton)))
 
+    cached_summaries: list[FileSummary] = []
+    fresh_data: list[tuple[str, str, str]] = []
+    cache_hits = 0
+
+    for rel_path, skeleton, content_hash in all_data:
+        if run_cache is not None and content_hash in run_cache:
+            cached_summaries.append(run_cache[content_hash])
+            cache_hits += 1
+        else:
+            fresh_data.append((rel_path, skeleton, content_hash))
+
+    if not fresh_data:
+        return cached_summaries, 0, cache_hits
+
+    file_skeletons = [(rel_path, skeleton) for rel_path, skeleton, _ in fresh_data]
     system = _SCOUT_README_SYSTEM if mode == "readme" else _SCOUT_CLG_SYSTEM
     prompt = _build_group_prompt(dir_key, file_skeletons, mode)
 
     parsed, _, tokens = await acall_llm(model_key, system, prompt, output_model=_GroupAnalysis)
 
+    fresh_summaries: list[FileSummary] = []
     if parsed is not None:
-        summaries: list[FileSummary] = [
-            FileSummary(path=a.path, summary=a.summary, key_symbols=a.key_symbols)
-            for a in parsed.files
-        ]
+        analyses = parsed.files
+        for i, (rel_path, _, content_hash) in enumerate(fresh_data):
+            if i < len(analyses):
+                a = analyses[i]
+                summary = FileSummary(path=a.path, summary=a.summary, key_symbols=a.key_symbols)
+            else:
+                summary = FileSummary(path=rel_path, summary="", key_symbols=[])
+            if run_cache is not None:
+                run_cache[content_hash] = summary
+            fresh_summaries.append(summary)
     else:
-        summaries = [FileSummary(path=rel, summary="", key_symbols=[]) for rel, _ in file_skeletons]
+        for rel_path, _, content_hash in fresh_data:
+            summary = FileSummary(path=rel_path, summary="", key_symbols=[])
+            if run_cache is not None:
+                run_cache[content_hash] = summary
+            fresh_summaries.append(summary)
 
-    return summaries, tokens
+    return cached_summaries + fresh_summaries, tokens, cache_hits
 
 
 async def scout_node(
@@ -124,6 +152,7 @@ async def scout_node(
     changed_files: list[str] | None = None,
     existing_doc: str | None = None,
     model_key: str,
+    run_cache: dict[str, FileSummary] | None = None,
 ) -> ScoutOutput:
     """Analyse Python files grouped by directory with one LLM call per group.
 
@@ -149,21 +178,23 @@ async def scout_node(
     dir_keys = list(groups.keys())
     logger.debug("scout_node mode=%s groups=%d files=%d", mode, len(groups), len(files))
 
-    calls = [_analyse_group(dk, groups[dk], repo_root, mode, model_key) for dk in dir_keys]
+    calls = [_analyse_group(dk, groups[dk], repo_root, mode, model_key, run_cache) for dk in dir_keys]
     results = await asyncio.gather(*calls)
 
     all_summaries: list[FileSummary] = []
     grouped: dict[str, list[FileSummary]] = {}
     total_tokens = 0
+    total_hits = 0
 
-    for dir_key, (summaries, tokens) in zip(dir_keys, results, strict=True):
+    for dir_key, (summaries, tokens, hits) in zip(dir_keys, results, strict=True):
         all_summaries.extend(summaries)
         grouped[dir_key] = summaries
         total_tokens += tokens
+        total_hits += hits
 
     return ScoutOutput(
         summaries=all_summaries,
         grouped=grouped,
-        cache_hits=0,
+        cache_hits=total_hits,
         tokens_used=total_tokens,
     )
