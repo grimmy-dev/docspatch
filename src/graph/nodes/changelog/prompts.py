@@ -65,8 +65,8 @@ def build_clg_prompt(state: ChangelogState) -> str:
     if state.is_initial_commit:
         lines.append("\n[INSTRUCTION] This is an initial release. Write an 'Initial Release' overview describing the project.")
 
-    if state.diff:
-        label = "Project context" if state.is_initial_commit else "Diff"
-        lines.append(f"\n{label}:\n{state.diff}")
+    if state.aggregated_context:
+        label = "Project context" if state.is_initial_commit else "Code analysis"
+        lines.append(f"\n{label}:\n{state.aggregated_context}")
 
     return "\n".join(lines)

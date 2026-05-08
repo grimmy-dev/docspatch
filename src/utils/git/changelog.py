@@ -10,7 +10,7 @@ from src.utils.log import get_logger
 if TYPE_CHECKING:
     import git
 
-__all__ = ["get_commit_log", "get_git_diff", "get_initial_commit_context", "is_initial_commit"]
+__all__ = ["get_commit_log", "get_diff_changed_files", "get_git_diff", "get_initial_commit_context", "is_initial_commit"]
 
 logger = get_logger(__name__)
 
@@ -46,9 +46,27 @@ def get_git_diff(repo: git.Repo, from_ref: str | None, to_ref: str | None) -> st
             end = to_ref or "HEAD"
             result = repo.git.diff(f"{from_ref}..{end}", "--", *_NOISE_PATHSPECS)
         return result
-    except Exception as exc:  # noqa: BLE001 — git may be absent or ref invalid
+    except Exception as exc:
         logger.debug("get_git_diff failed: %s", exc)
         return ""
+
+
+def get_diff_changed_files(repo: git.Repo, from_ref: str | None, to_ref: str | None) -> list[str]:
+    """Return relative paths of .py files changed in the given range.
+
+    Without from_ref: diffs working tree against HEAD.
+    With from_ref: diffs from_ref..to_ref (to_ref defaults to HEAD).
+    Lockfiles and generated files excluded via the same noise pathspecs as get_git_diff."""
+    try:
+        if from_ref is None:
+            output: str = repo.git.diff("HEAD", "--name-only", "--", *_NOISE_PATHSPECS)
+        else:
+            end = to_ref or "HEAD"
+            output = repo.git.diff(f"{from_ref}..{end}", "--name-only", "--", *_NOISE_PATHSPECS)
+        return [f for f in output.strip().splitlines() if f.strip().endswith(".py")]
+    except Exception as exc:
+        logger.debug("get_diff_changed_files failed: %s", exc)
+        return []
 
 
 def get_commit_log(repo: git.Repo, from_ref: str | None, to_ref: str | None) -> list[str]:
@@ -62,7 +80,7 @@ def get_commit_log(repo: git.Repo, from_ref: str | None, to_ref: str | None) -> 
         end = to_ref or "HEAD"
         raw = repo.git.log(f"{from_ref}..{end}", "--format=%h %s")
         return [_decode(line) for line in raw.strip().splitlines() if line.strip()]
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.debug("get_commit_log failed: %s", exc)
         return []
 
@@ -71,7 +89,7 @@ def is_initial_commit(repo: git.Repo) -> bool:
     """Return True when the repo has exactly one commit."""
     try:
         return int(repo.git.rev_list("--count", "HEAD").strip()) == 1
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.debug("is_initial_commit failed: %s", exc)
         return False
 
@@ -89,6 +107,6 @@ def get_initial_commit_context(repo: git.Repo, root: Path) -> str:
             pass
     try:
         parts.append(f"Files:\n{repo.git.ls_files()}")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.debug("get_initial_commit_context: ls_files failed: %s", exc)
     return "\n\n".join(parts)

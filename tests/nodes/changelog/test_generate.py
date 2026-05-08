@@ -51,19 +51,25 @@ def test_initial_release_instruction_present() -> None:
     assert "Initial" in build_clg_prompt(_state(is_initial_commit=True))
 
 
-def test_diff_included_in_prompt() -> None:
-    assert "@@ some changes @@" in build_clg_prompt(_state(diff="@@ some changes @@"))
+def test_aggregated_context_included_in_prompt() -> None:
+    result = build_clg_prompt(_state(aggregated_context="Detailed code analysis here."))
+    assert "Detailed code analysis here." in result
 
 
-def test_initial_commit_labels_payload_as_project_context() -> None:
-    result = build_clg_prompt(_state(is_initial_commit=True, diff="README:\nMy Project"))
+def test_initial_commit_labels_context_as_project_context() -> None:
+    result = build_clg_prompt(_state(is_initial_commit=True, aggregated_context="Files: src/main.py"))
     assert "Project context" in result
-    assert "Diff:" not in result
 
 
-def test_normal_diff_labelled_as_diff() -> None:
-    result = build_clg_prompt(_state(is_initial_commit=False, diff="@@ changed @@"))
-    assert "Diff:" in result
+def test_normal_context_labelled_as_code_analysis() -> None:
+    result = build_clg_prompt(_state(is_initial_commit=False, aggregated_context="Changed things."))
+    assert "Code analysis" in result
+
+
+def test_no_code_analysis_section_when_empty() -> None:
+    result = build_clg_prompt(_state(aggregated_context=""))
+    assert "Code analysis" not in result
+    assert "Project context" not in result
 
 
 def test_style_note_in_prompt() -> None:

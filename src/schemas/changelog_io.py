@@ -2,10 +2,14 @@
 
 from typing import TypedDict
 
+from src.schemas.scout_io import ScoutOutput
+
 __all__ = [
+    "ChangelogAggregatorUpdate",
     "ChangelogContextUpdate",
     "ChangelogLLMUpdate",
     "ChangelogPreviewUpdate",
+    "ChangelogScoutUpdate",
     "ChangelogWriterUpdate",
 ]
 
@@ -13,16 +17,28 @@ __all__ = [
 class ChangelogContextUpdate(TypedDict, total=False):
     """Returned by clg_context."""
 
-    diff: str
+    changed_files: list[str]
     commits: list[str]
     version: str
     project_name: str
     project_description: str | None
     has_breaking_changes: bool
     is_initial_commit: bool
-    diff_was_truncated: bool
     nothing_to_document: bool
     warnings: list[str]
+
+
+class ChangelogScoutUpdate(TypedDict, total=False):
+    """Returned by clg_scout."""
+
+    scout_output: ScoutOutput
+    token_actual: int
+
+
+class ChangelogAggregatorUpdate(TypedDict, total=False):
+    """Returned by clg_aggregator."""
+
+    aggregated_context: str
 
 
 class ChangelogLLMUpdate(TypedDict):

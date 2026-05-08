@@ -7,6 +7,7 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import Field
 
 from src.schemas.pipeline_state import PipelineState
+from src.schemas.scout_io import ScoutOutput
 
 __all__ = ["ChangelogState", "CompiledChangelogGraph"]
 
@@ -20,15 +21,18 @@ class ChangelogState(PipelineState):
     output_path: Path | None = None
 
     # Context — written by clg_context
-    diff: str = ""
+    changed_files: list[str] = Field(default_factory=list)  # .py files changed in range
     commits: list[str] = Field(default_factory=list)
     version: str = "Unreleased"
     project_name: str = ""
     project_description: str | None = None
     has_breaking_changes: bool = False
     is_initial_commit: bool = False
-    diff_was_truncated: bool = False
-    nothing_to_document: bool = False  # gate for _after_context → skips clg_llm when True
+    nothing_to_document: bool = False  # gate for _after_context → skips clg_scout when True
+
+    # Scout + aggregator output — written by clg_scout / clg_aggregator
+    scout_output: ScoutOutput | None = None
+    aggregated_context: str = ""
 
     # Pipeline state
     generated_entry: str = ""  # written by: clg_llm

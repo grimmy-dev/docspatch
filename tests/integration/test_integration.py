@@ -85,17 +85,21 @@ async def test_docs_pipeline_interrupts_with_generated_docs(git_repo: Path) -> N
 
 @pytest.mark.asyncio
 async def test_clg_pipeline_interrupts_with_generated_entry(git_repo: Path) -> None:
-    """CLG pipeline routes clg_context → clg_llm → changelog review interrupt."""
+    """CLG pipeline routes clg_context → clg_scout → clg_aggregator → clg_llm → changelog review interrupt."""
     from src.graph.graphs.clg_graph import build
     from src.schemas.changelog_state import ChangelogState
 
     graph = build()
     state = ChangelogState(repo_path=git_repo, from_ref="HEAD~1")
 
-    with patch(
-        "src.graph.nodes.changelog.generate.acall_llm",
-        new_callable=AsyncMock,
-        return_value=(None, "## v0.1.0\n\n- Added world function", 50),
+    scout_mock = AsyncMock(return_value=(None, "", 15))
+    aggregator_mock = AsyncMock(return_value=(None, "Added world function.", 10))
+    generate_mock = AsyncMock(return_value=(None, "## v0.1.0\n\n- Added world function", 50))
+
+    with (
+        patch("src.graph.nodes.scout.acall_llm", scout_mock),
+        patch("src.graph.nodes.aggregator.acall_llm", aggregator_mock),
+        patch("src.graph.nodes.changelog.generate.acall_llm", generate_mock),
     ):
         interrupt_val = await _first_interrupt(graph, state.model_dump(), _config())
 

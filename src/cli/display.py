@@ -140,7 +140,7 @@ def print_clg_dry_run(state: ChangelogState, prompt: str) -> None:
     else:
         table.add_row("Range", "uncommitted working tree")
     table.add_row("Commits", str(len(state.commits)))
-    table.add_row("Diff chars", f"{len(state.diff):,}" + (" (truncated)" if state.diff_was_truncated else ""))
+    table.add_row("Changed Python files", str(len(state.changed_files)))
     table.add_row("Breaking changes", "yes" if state.has_breaking_changes else "no")
     table.add_row("Initial commit", "yes" if state.is_initial_commit else "no")
     table.add_row("Style", state.style)

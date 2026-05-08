@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 from src.utils.git.changelog import (
     get_commit_log,
+    get_diff_changed_files,
     get_git_diff,
     get_initial_commit_context,
     is_initial_commit,
@@ -142,3 +143,54 @@ def test_initial_context_skips_missing_readme(tmp_path: Path) -> None:
     result = get_initial_commit_context(repo, tmp_path)
     assert "README:" not in result
     assert "Files:" in result
+
+
+# ---------------------------------------------------------------------------
+# get_diff_changed_files
+# ---------------------------------------------------------------------------
+
+
+def test_diff_changed_files_working_tree_calls_diff_head() -> None:
+    repo = _repo()
+    repo.git.diff.return_value = "src/main.py\nsrc/utils.py"
+    result = get_diff_changed_files(repo, from_ref=None, to_ref=None)
+    call_args = repo.git.diff.call_args[0]
+    assert call_args[0] == "HEAD"
+    assert result == ["src/main.py", "src/utils.py"]
+
+
+def test_diff_changed_files_ref_range_uses_dotdot_notation() -> None:
+    repo = _repo()
+    repo.git.diff.return_value = "src/main.py"
+    get_diff_changed_files(repo, from_ref="v1.0.0", to_ref=None)
+    call_args = repo.git.diff.call_args[0]
+    assert call_args[0] == "v1.0.0..HEAD"
+
+
+def test_diff_changed_files_custom_to_ref() -> None:
+    repo = _repo()
+    repo.git.diff.return_value = "src/main.py"
+    get_diff_changed_files(repo, from_ref="v1.0.0", to_ref="v1.1.0")
+    call_args = repo.git.diff.call_args[0]
+    assert call_args[0] == "v1.0.0..v1.1.0"
+
+
+def test_diff_changed_files_filters_non_python_files() -> None:
+    repo = _repo()
+    repo.git.diff.return_value = "src/main.py\nREADME.md\npyproject.toml\nsrc/utils.py"
+    result = get_diff_changed_files(repo, from_ref=None, to_ref=None)
+    assert result == ["src/main.py", "src/utils.py"]
+
+
+def test_diff_changed_files_returns_empty_on_exception() -> None:
+    repo: MagicMock = MagicMock()
+    repo.git.diff.side_effect = Exception("git error")
+    assert get_diff_changed_files(repo, from_ref="v1.0.0", to_ref=None) == []
+
+
+def test_diff_changed_files_passes_name_only_flag() -> None:
+    repo = _repo()
+    repo.git.diff.return_value = ""
+    get_diff_changed_files(repo, from_ref=None, to_ref=None)
+    call_args = repo.git.diff.call_args[0]
+    assert "--name-only" in call_args

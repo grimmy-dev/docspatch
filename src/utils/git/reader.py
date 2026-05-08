@@ -10,6 +10,7 @@ import git
 
 from src.utils.git.changelog import (
     get_commit_log,
+    get_diff_changed_files,
     get_git_diff,
     get_initial_commit_context,
     is_initial_commit,
@@ -90,6 +91,10 @@ class GitReader:
     def get_diff(self, from_ref: str | None, to_ref: str | None) -> str:
         """Return filtered unified diff with noise pathspecs applied."""
         return get_git_diff(self._repo, from_ref, to_ref)
+
+    def get_diff_changed_files(self, from_ref: str | None, to_ref: str | None) -> list[str]:
+        """Return relative paths of .py files changed in the given range."""
+        return get_diff_changed_files(self._repo, from_ref, to_ref)
 
     def get_raw_diff(self, target: Path | None = None) -> str:
         """Return raw HEAD diff, optionally scoped to target path."""
