@@ -6,6 +6,8 @@ from src.schemas.state import DocpatchState
 from src.utils.config import load
 from src.utils.log import get_logger
 
+__all__ = ["batcher", "group_batches"]
+
 logger = get_logger(__name__)
 
 

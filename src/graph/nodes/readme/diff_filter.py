@@ -5,9 +5,8 @@ from pathlib import Path
 from src.schemas.readme_io import ReadmeDiffFilterUpdate
 from src.schemas.readme_state import ReadmeState
 from src.utils.diff.semantics import filter_diff_noise
-from src.utils.git.repo import get_repo
+from src.utils.git.reader import GitReader
 from src.utils.log import get_logger
-from src.utils.readme.signals import get_diff_files
 
 logger = get_logger(__name__)
 
@@ -17,15 +16,14 @@ def readme_diff_filter(state: ReadmeState) -> ReadmeDiffFilterUpdate:
     if state.rewrite:
         return {}
 
-    target = Path(state.target_path).resolve() if state.target_path else Path(".")
-
     try:
-        repo = get_repo(state.repo_path)
-    except Exception as exc:  # noqa: BLE001 — git may be absent
+        reader = GitReader(state.repo_path)
+    except RuntimeError as exc:
         logger.debug("readme_diff_filter: cannot open repo: %s", exc)
         return {}
 
-    changed = get_diff_files(repo, target)
+    target = reader.resolve_target(state.target_path)
+    changed = reader.get_diff_files(target)
 
     if not changed:
         if state.existing_readme:
@@ -39,7 +37,7 @@ def readme_diff_filter(state: ReadmeState) -> ReadmeDiffFilterUpdate:
     # Verify at least one changed file has meaningful (non-noise) hunks.
     # Import-reorders, whitespace, and comment-only edits do not warrant README regeneration.
     try:
-        raw_diff: str = repo.git.diff("HEAD", "--", str(target))
+        raw_diff = reader.get_raw_diff(target)
         filtered = filter_diff_noise(raw_diff)
         if not filtered["content"].strip():
             logger.debug(
@@ -48,7 +46,7 @@ def readme_diff_filter(state: ReadmeState) -> ReadmeDiffFilterUpdate:
                 filtered["drop_reasons"],
             )
             return {"up_to_date": True}
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.debug("readme_diff_filter: noise check failed, proceeding: %s", exc)
 
     return {"diff_changed_files": changed}

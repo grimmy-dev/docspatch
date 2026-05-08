@@ -8,8 +8,15 @@ from src.schemas.readme_state import ReadmeState
 from src.utils.config import load
 from src.utils.fs import hash_content
 from src.utils.llm.caller import acall_llm, is_cancelled
-from src.utils.llm.prompts import README_UNDERSTAND_SYSTEM
+from src.graph.nodes.readme.prompts import README_UNDERSTAND_SYSTEM
 from src.utils.log import get_logger
+
+__all__ = [
+    "build_understanding_string",
+    "partition_modules",
+    "readme_understand",
+    "select_modules",
+]
 
 logger = get_logger(__name__)
 
@@ -36,7 +43,7 @@ def _rank_module(path: str, changed: frozenset[str]) -> int:
     return 0
 
 
-def _select_modules(
+def select_modules(
     public_api: dict[str, list[str]],
     style: str,
     diff_changed: list[str],
@@ -47,7 +54,7 @@ def _select_modules(
     return sorted(public_api, key=lambda p: _rank_module(p, changed), reverse=True)[:cap]
 
 
-def _build_understanding_string(summaries: dict[str, str]) -> str:
+def build_understanding_string(summaries: dict[str, str]) -> str:
     """Format per-module summaries into a compact project understanding block."""
     lines = ["Project Understanding:"] + [f"- {mod}: {summary}" for mod, summary in summaries.items()]
     return "\n".join(lines)
@@ -56,14 +63,11 @@ def _build_understanding_string(summaries: dict[str, str]) -> str:
 def _prompt_for_module(mod: str, content: str, symbols: list[str]) -> str:
     """Build LLM prompt using file content when available, fallback to symbol list."""
     if content:
-        return (
-            f"Module '{mod}':\n```python\n{content}\n```\n"
-            "Describe this module's purpose in one sentence."
-        )
+        return f"Module '{mod}':\n```python\n{content}\n```\nDescribe this module's purpose in one sentence."
     return f"Module '{mod}':\nSymbols: {', '.join(symbols[:20])}\nDescribe this module's purpose in one sentence."
 
 
-def _partition_modules(
+def partition_modules(
     selected: list[str],
     cached_hashes: dict[str, str],
     contents: dict[str, str],
@@ -127,18 +131,14 @@ async def readme_understand(state: ReadmeState) -> ReadmeUnderstandUpdate:
         return {}
 
     cfg = load()
-    selected = _select_modules(state.public_api, state.style, state.diff_changed_files)
+    selected = select_modules(state.public_api, state.style, state.diff_changed_files)
 
-    base: Path = (
-        Path(state.target_path).resolve()
-        if state.target_path is not None
-        else (state.repo_root or state.repo_path or Path("."))
-    )
+    base: Path = Path(state.target_path).resolve() if state.target_path is not None else (state.repo_root or state.repo_path or Path("."))
 
     raw_contents = await asyncio.gather(*[_read_module_content(base / mod) for mod in selected])
     contents: dict[str, str] = dict(zip(selected, raw_contents, strict=True))
 
-    fresh, cached = _partition_modules(selected, state.module_hashes, contents)
+    fresh, cached = partition_modules(selected, state.module_hashes, contents)
     logger.debug(
         "readme_understand: skipped %d unchanged modules, re-understood %d changed modules",
         len(cached),
@@ -153,7 +153,7 @@ async def readme_understand(state: ReadmeState) -> ReadmeUnderstandUpdate:
     }
     new_summaries = {**state.module_summaries, **fresh_summaries}
     ordered = {mod: new_summaries[mod] for mod in selected if mod in new_summaries}
-    project_understanding = _build_understanding_string(ordered) if ordered else None
+    project_understanding = build_understanding_string(ordered) if ordered else None
 
     return {
         "project_understanding": project_understanding,

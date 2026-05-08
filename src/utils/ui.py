@@ -102,5 +102,3 @@ def info(msg: str) -> None:
     Args:
         msg: The message to print."""
     console.print(f"[dim]{msg}[/dim]")
-
-

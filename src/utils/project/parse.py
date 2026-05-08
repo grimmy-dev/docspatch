@@ -128,4 +128,3 @@ def load_existing_readme(path: Path, max_chars: int = MAX_README_CHARS) -> tuple
     if len(content) > max_chars:
         return compact_readme(content, max_chars), True
     return content, False
-

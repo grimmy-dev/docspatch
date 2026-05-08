@@ -1,39 +1,11 @@
-"""README I/O signals — git history, test coverage, and diff detection."""
-
-from __future__ import annotations
+"""README signals — test coverage extraction."""
 
 import ast
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from src.utils.log import get_logger
-
-if TYPE_CHECKING:
-    import git
-
-__all__ = ["get_diff_files", "get_git_signals", "get_test_coverage_summary"]
-
-logger = get_logger(__name__)
+__all__ = ["get_test_coverage_summary"]
 
 _TEST_NAMES_PER_MODULE = 6
-
-
-def get_git_signals(repo: git.Repo) -> str:
-    """Return a compact git history and activity summary. Empty string on any failure."""
-    from datetime import datetime
-
-    try:
-        count = int(repo.git.rev_list("--count", "HEAD").strip())
-        last = repo.git.log("-1", "--format=%ci", "HEAD").strip()[:7]
-        first = repo.git.log("--reverse", "-1", "--format=%ci", "HEAD").strip()[:7]
-        last_dt = datetime.strptime(last, "%Y-%m")
-        now = datetime.now()
-        months_since = (now.year - last_dt.year) * 12 + (now.month - last_dt.month)
-        status = "dormant" if months_since > 12 else "active"
-        return f"Commits: {count} · First: {first} · Last: {last} · Status: {status}"
-    except Exception as exc:  # noqa: BLE001 — git may be absent or repo malformed
-        logger.debug("get_git_signals failed: %s", exc)
-        return ""
 
 
 def get_test_coverage_summary(root: Path) -> str:
@@ -62,13 +34,3 @@ def get_test_coverage_summary(root: Path) -> str:
         return ""
     parts = "; ".join(f"{mod}: {', '.join(names)}" for mod, names in modules.items())
     return f"Tests — {parts}"
-
-
-def get_diff_files(repo: git.Repo, target: Path) -> list[str]:
-    """Return Python files under target that differ from HEAD. Empty list on failure."""
-    try:
-        output = repo.git.diff("HEAD", "--name-only", "--", str(target))
-        return [f for f in output.strip().splitlines() if f.endswith(".py")]
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("get_diff_files failed: %s", exc)
-        return []

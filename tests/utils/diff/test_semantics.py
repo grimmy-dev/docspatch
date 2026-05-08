@@ -205,5 +205,3 @@ def test_score_keeps_fix_and_perf() -> None:
     commits = ["abc1234 fix: null check", "def5678 perf: cache result"]
     result = score_and_filter_commits(commits)
     assert result == commits
-
-

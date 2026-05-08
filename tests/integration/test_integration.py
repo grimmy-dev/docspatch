@@ -65,10 +65,12 @@ async def test_docs_pipeline_interrupts_with_generated_docs(git_repo: Path) -> N
     state = DocpatchState(repo_path=git_repo, target_path=git_repo, update_all=True)
 
     mock_result = (
-        BatchDocstringOutput(items=[
-            DocstringOutput(name="hello", docstring="Says hello."),
-            DocstringOutput(name="world", docstring="Says world."),
-        ]),
+        BatchDocstringOutput(
+            items=[
+                DocstringOutput(name="hello", docstring="Says hello."),
+                DocstringOutput(name="world", docstring="Says world."),
+            ]
+        ),
         "",
         10,
     )

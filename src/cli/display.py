@@ -9,7 +9,8 @@ from src.schemas.function import FunctionMetadata
 from src.schemas.readme_state import ReadmeState
 from src.schemas.state import DocpatchState
 from src.utils.config import load
-from src.utils.llm.prompts import CHANGELOG_SYSTEM, README_SYSTEM
+from src.graph.nodes.changelog.prompts import CHANGELOG_SYSTEM
+from src.graph.nodes.readme.prompts import README_SYSTEM
 from src.utils.ui import console, short_path
 
 
@@ -88,22 +89,23 @@ def print_readme_dry_run(state: ReadmeState, prompt: str) -> None:
     output_tokens = cfg.defaults.readme_tokens_compact if state.style == "compact" else cfg.defaults.readme_tokens_detailed
     cost_estimate = ((input_tokens + output_tokens) / 1_000_000) * 15.0
     token_var = "readme_tokens_compact" if state.style == "compact" else "readme_tokens_detailed"
+    ctx = state.project_context
     fallback_name = Path(state.repo_path or state.target_path or ".").name
-    project_name = state.project_name or fallback_name
+    project_name = ctx.name or fallback_name
     tree_lines = state.dir_tree.count("\n") + 1 if state.dir_tree else 0
 
     table = Table(show_header=False, box=None, padding=(0, 2))
     table.add_column("Key", style="bold")
     table.add_column("Value", style="sandy_brown")
 
-    name_ver = f"{project_name} {state.project_version or ''}".strip()
+    name_ver = f"{project_name} {ctx.version or ''}".strip()
     table.add_row("Project", name_ver)
     table.add_row("Scope", short_path(str(state.target_path or state.repo_path or ".")))
-    if state.project_description:
-        table.add_row("Description", state.project_description[:80])
+    if ctx.description:
+        table.add_row("Description", ctx.description[:80])
     if state.remote_url:
         table.add_row("Repository", state.remote_url)
-    table.add_row("Dependencies", str(len(state.dependencies)))
+    table.add_row("Dependencies", str(len(ctx.dependencies)))
     table.add_row("Dir tree", f"{tree_lines} entries" if tree_lines else "empty")
     table.add_row("Existing README", "yes" if state.existing_readme else "no")
     table.add_row("Mode", "rewrite" if state.rewrite else "update")

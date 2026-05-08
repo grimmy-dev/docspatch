@@ -8,6 +8,8 @@ from src.constants import DOCSPATCH_DIR
 from src.schemas.config import AppConfig
 from src.utils.log import get_logger
 
+__all__ = ["get", "get_api_key", "load", "reset_cache", "save"]
+
 logger = get_logger(__name__)
 
 CONFIG_DIR = DOCSPATCH_DIR
@@ -37,6 +39,12 @@ def load() -> AppConfig:
     logger.debug("Config loaded from %s", CONFIG_PATH)
     cached_config = AppConfig.model_validate(data)
     return cached_config
+
+
+def reset_cache() -> None:
+    """Clear the in-process config cache. Use in tests to prevent cache bleed between cases."""
+    global cached_config
+    cached_config = None
 
 
 def save(cfg: AppConfig) -> None:

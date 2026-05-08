@@ -20,7 +20,6 @@ _CONVENTIONAL_BREAKING_RE = re.compile(r"^[a-z]+(\([^)]+\))?!:")
 _DROP_TYPES = frozenset({"chore", "style", "refactor", "test", "docs", "ci", "build", "bump", "release"})
 
 
-
 class FilteredDiff(TypedDict):
     """Result of filter_diff_noise — filtered content plus drop statistics."""
 

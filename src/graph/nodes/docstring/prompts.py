@@ -7,9 +7,29 @@ file_slices parameter so this module has no disk dependencies.
 from pathlib import Path
 
 from src.schemas.function import FunctionMetadata
-from src.utils.llm.prompts import DOCSTRING_STYLE
 
-__all__ = ["build_prompt"]
+__all__ = ["DOCSTRING_STYLE", "DOCSTRING_SYSTEM", "build_prompt"]
+
+DOCSTRING_SYSTEM: dict[str, str] = {
+    "compact": (
+        "You are a technical documentation expert. Write Google-style Python docstrings.\n"
+        "Focus on PURPOSE and CONTRACT — why this exists, what the caller receives, what assumptions must hold.\n"
+        "Rules: imperative voice ('Return X', not 'Returns X'); no implementation walkthrough; "
+        "no filler prose; document Args and Returns only when non-trivial."
+    ),
+    "detailed": (
+        "You are a technical documentation expert. Write Google-style Python docstrings.\n"
+        "Focus on PURPOSE and CONTRACT — why this exists, what the caller receives, what edge cases apply.\n"
+        "Rules: imperative voice ('Return X', not 'Returns X'); include Args, Returns, Raises, and Example "
+        "where genuinely useful; document non-obvious invariants and constraints; no implementation walkthrough; "
+        "no filler prose."
+    ),
+}
+
+DOCSTRING_STYLE: dict[str, str] = {
+    "compact": "One-line summary only. Args and Returns only if non-trivial. No examples.",
+    "detailed": "Full docstring: summary, extended description if needed, Args, Returns, Raises, and Example sections where useful.",
+}
 
 
 def build_prompt(

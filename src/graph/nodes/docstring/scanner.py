@@ -4,7 +4,7 @@ from pathlib import Path
 
 from src.schemas.graph_io import ScannerUpdate
 from src.schemas.state import DocpatchState
-from src.utils.git.repo import get_repo, get_root, resolve_target
+from src.utils.git.reader import GitReader
 from src.utils.ignore import is_ignored, load_ignore
 from src.utils.log import get_logger
 
@@ -23,26 +23,22 @@ def scanner(state: DocpatchState) -> ScannerUpdate:
     Resolves target_path against git root, not CWD, so CLI relative paths
     cannot escape the repository boundary.
     """
-    repo = get_repo(state.repo_path)
-    root = get_root(repo)
-    target = resolve_target(state.target_path, root)
+    reader = GitReader(state.repo_path)
+    target = reader.resolve_target(state.target_path)
 
-    ignore_spec = load_ignore(root)
+    ignore_spec = load_ignore(reader.root)
 
     if state.from_ref:
         logger.debug("scanner: from_ref=%s, committed range only", state.from_ref)
-        rel_files = repo.git.diff("--name-only", state.from_ref, "HEAD", "--", str(target)).splitlines()
-    else:
-        rel_files = repo.git.ls_files("--cached", str(target)).splitlines()
-
-    untracked = repo.git.ls_files("--others", "--exclude-standard", str(target)).splitlines()
+    rel_files = reader.list_committed_files(target, state.from_ref)
+    untracked = reader.list_untracked_files(target)
 
     files: list[Path] = []
     for rel in rel_files + untracked:
-        abs_path = root / rel
+        abs_path = reader.root / rel
         if abs_path.suffix not in SUPPORTED_EXTENSIONS:
             continue
-        if is_ignored(ignore_spec, root, abs_path):
+        if is_ignored(ignore_spec, reader.root, abs_path):
             logger.debug("scanner: ignored %s", rel)
             continue
         files.append(abs_path)

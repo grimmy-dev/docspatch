@@ -14,19 +14,33 @@ def _state(**kwargs: object) -> ChangelogState:
     return ChangelogState(**kwargs)  # type: ignore[arg-type]
 
 
-def _run(state: ChangelogState, **overrides: object) -> dict:  # type: ignore[type-arg]
+def _mock_reader(
+    *,
+    root: Path = Path("/repo"),
+    is_initial: bool = False,
+    diff: str = "@@ some diff @@",
+    commits: list[str] | None = None,
+    initial_ctx: str = "",
+) -> MagicMock:
+    reader: MagicMock = MagicMock()
+    reader.root = root
+    reader.is_initial_commit.return_value = is_initial
+    reader.get_diff.return_value = diff
+    reader.get_commit_log.return_value = commits if commits is not None else ["abc1234 feat: add thing"]
+    reader.get_initial_commit_context.return_value = initial_ctx
+    return reader
+
+
+def _run(state: ChangelogState, reader: MagicMock | None = None, **overrides: object) -> dict:  # type: ignore[type-arg]
+    if reader is None:
+        reader = _mock_reader()
     mocks: dict[str, object] = {
-        "get_repo": MagicMock(),
-        "get_root": MagicMock(return_value=Path("/repo")),
+        "GitReader": MagicMock(return_value=reader),
         "parse_pyproject": MagicMock(return_value=ProjectContext(version="1.2.3")),
-        "is_initial_commit": MagicMock(return_value=False),
-        "get_git_diff": MagicMock(return_value="@@ some diff @@"),
-        "get_commit_log": MagicMock(return_value=["abc1234 feat: add thing"]),
         "filter_diff_noise": MagicMock(return_value={"content": "@@ some diff @@", "dropped_hunks": 0, "drop_reasons": []}),
         "score_and_filter_commits": MagicMock(side_effect=lambda c: c),
         "truncate_diff": MagicMock(return_value=("@@ some diff @@", False)),
         "detect_breaking_changes": MagicMock(return_value=False),
-        "get_initial_commit_context": MagicMock(return_value=""),
         "load": MagicMock(return_value=MagicMock(defaults=MagicMock(changelog_diff_cap=8000))),
     }
     mocks.update(overrides)
@@ -56,10 +70,11 @@ def test_version_defaults_to_unreleased_when_none() -> None:
 
 
 def test_nothing_to_document_when_empty_diff_and_no_commits() -> None:
+    reader = _mock_reader(diff="", commits=[])
     result = _run(
         _state(),
-        get_git_diff=MagicMock(return_value=""),
-        get_commit_log=MagicMock(return_value=[]),
+        reader=reader,
+        filter_diff_noise=MagicMock(return_value={"content": "", "dropped_hunks": 0, "drop_reasons": []}),
         truncate_diff=MagicMock(return_value=("", False)),
     )
     assert result["nothing_to_document"] is True
@@ -83,11 +98,8 @@ def test_has_breaking_changes_flag_propagated() -> None:
 
 def test_initial_commit_returns_context_payload() -> None:
     ctx = "README:\nMy Project\n\nFiles:\nsrc/main.py"
-    result = _run(
-        _state(),
-        is_initial_commit=MagicMock(return_value=True),
-        get_initial_commit_context=MagicMock(return_value=ctx),
-    )
+    reader = _mock_reader(is_initial=True, initial_ctx=ctx)
+    result = _run(_state(), reader=reader)
     assert result["is_initial_commit"] is True
     assert result["diff"] == ctx
     assert result["commits"] == []
@@ -95,8 +107,6 @@ def test_initial_commit_returns_context_payload() -> None:
 
 
 def test_initial_commit_flag_ignored_when_from_ref_set() -> None:
-    result = _run(
-        _state(from_ref="v0.1.0"),
-        is_initial_commit=MagicMock(return_value=True),
-    )
+    reader = _mock_reader(is_initial=True)
+    result = _run(_state(from_ref="v0.1.0"), reader=reader)
     assert result["is_initial_commit"] is False

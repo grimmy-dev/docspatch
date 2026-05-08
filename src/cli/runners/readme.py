@@ -56,8 +56,7 @@ async def run_readme(graph: CompiledReadmeGraph, state: ReadmeState, config: Gra
 
     if final_state.dry_run:
         from src.cli.display import print_readme_dry_run
-        from src.graph.nodes.readme.prompts import build_readme_prompt
-        from src.utils.llm.prompts import README_SYSTEM
+        from src.graph.nodes.readme.prompts import README_SYSTEM, build_readme_prompt
 
         prompt = build_readme_prompt(final_state)
         print_readme_dry_run(final_state, prompt)

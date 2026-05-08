@@ -7,6 +7,8 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import Field
 
 from src.schemas.pipeline_state import PipelineState
+from src.schemas.readme_io import ProjectContext
+from src.utils.git.reader import GitSignals
 from src.utils.project.usage import UsageExample
 
 __all__ = ["CompiledReadmeGraph", "ReadmeState"]
@@ -22,25 +24,20 @@ class ReadmeState(PipelineState):
     repo_root: Path | None = None  # resolved repo root; set by readme_context for scope detection
 
     # Project context — written by readme_context
-    project_name: str = ""
-    project_version: str | None = None
-    project_description: str | None = None
-    dependencies: list[str] = Field(default_factory=list)
-    cli_scripts: dict[str, str] = Field(default_factory=dict)
+    project_context: ProjectContext = Field(default_factory=ProjectContext)
     remote_url: str | None = None
     dir_tree: str = ""
     init_docstring: str | None = None
     existing_readme: str | None = None
     readme_was_truncated: bool = False
-    license_id: str | None = None
     public_api: dict[str, list[str]] = Field(default_factory=dict)
 
     # Diff-filter state — written by readme_diff_filter
-    up_to_date: bool = False           # gate for _after_diff_filter → skips to END when True
+    up_to_date: bool = False  # gate for _after_diff_filter → skips to END when True
     diff_changed_files: list[str] = Field(default_factory=list)
 
     # Enrichment signals — written by readme_context
-    git_signals: str = ""
+    git_signals: GitSignals | None = None
     test_coverage: str = ""
     usage_examples: list[UsageExample] = Field(default_factory=list)
 
@@ -50,9 +47,9 @@ class ReadmeState(PipelineState):
     module_hashes: dict[str, str] = Field(default_factory=dict)
 
     # Pipeline state
-    generated_readme: str = ""          # written by: readme_llm
+    generated_readme: str = ""  # written by: readme_llm
     accepted_readme: str | None = None  # written by: readme_preview
-    remarks: str = ""                   # set by CLI before graph entry
+    remarks: str = ""  # set by CLI before graph entry
 
     @property
     def resolved_output_path(self) -> Path:

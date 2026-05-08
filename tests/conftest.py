@@ -1,8 +1,17 @@
-"""Shared test helpers — imported directly by test files that need them."""
+"""Shared test helpers and fixtures."""
 
 from pathlib import Path
 
+import pytest
+
 from src.schemas.function import FunctionMetadata, make_fn_id
+from src.utils.config import reset_cache
+
+
+@pytest.fixture(autouse=True)
+def _reset_config_cache() -> None:
+    """Prevent config cache bleed between tests."""
+    reset_cache()
 
 
 def make_fn(

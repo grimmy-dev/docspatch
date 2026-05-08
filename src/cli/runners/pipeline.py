@@ -55,9 +55,7 @@ async def run_pipeline(
     with console.status(f"[dim]{init_message}[/dim]", spinner="dots") as status:
         while True:
             try:
-                interrupted, interrupt_val = await stream_graph(
-                    graph, payload, config, status, node_messages, dry_skip, on_node
-                )
+                interrupted, interrupt_val = await stream_graph(graph, payload, config, status, node_messages, dry_skip, on_node)
             except (Exception, KeyboardInterrupt) as exc:
                 await handle_stream_error(exc, rs, status)
                 payload = None

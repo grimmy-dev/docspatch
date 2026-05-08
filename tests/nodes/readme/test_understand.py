@@ -27,34 +27,34 @@ def _make_llm_result(text: str, tokens: int = 10) -> tuple[None, str, int]:
 
 
 def test_select_modules_caps_compact() -> None:
-    from src.graph.nodes.readme.understand import _select_modules
+    from src.graph.nodes.readme.understand import select_modules
 
     api = {f"mod_{i}.py": [f"fn_{i}"] for i in range(20)}
-    result = _select_modules(api, "compact", [])
+    result = select_modules(api, "compact", [])
     assert len(result) == 5
 
 
 def test_select_modules_caps_detailed() -> None:
-    from src.graph.nodes.readme.understand import _select_modules
+    from src.graph.nodes.readme.understand import select_modules
 
     api = {f"mod_{i}.py": [f"fn_{i}"] for i in range(20)}
-    result = _select_modules(api, "detailed", [])
+    result = select_modules(api, "detailed", [])
     assert len(result) == 10
 
 
 def test_select_modules_prioritises_changed_files() -> None:
-    from src.graph.nodes.readme.understand import _select_modules
+    from src.graph.nodes.readme.understand import select_modules
 
     api = {"utils/helper.py": ["fn"], "changed.py": ["fn2"], "other.py": ["fn3"]}
-    result = _select_modules(api, "compact", ["changed.py"])
+    result = select_modules(api, "compact", ["changed.py"])
     assert result[0] == "changed.py"
 
 
 def test_select_modules_prioritises_main() -> None:
-    from src.graph.nodes.readme.understand import _select_modules
+    from src.graph.nodes.readme.understand import select_modules
 
     api = {"src/__main__.py": ["main"], "src/utils/helper.py": ["util"]}
-    result = _select_modules(api, "compact", [])
+    result = select_modules(api, "compact", [])
     assert result[0] == "src/__main__.py"
 
 
@@ -78,17 +78,17 @@ def test_hash_content_differs_on_change() -> None:
 
 
 def test_build_understanding_string_contains_all_modules() -> None:
-    from src.graph.nodes.readme.understand import _build_understanding_string
+    from src.graph.nodes.readme.understand import build_understanding_string
 
     summaries = {"mod_a": "Does A things.", "mod_b": "Does B things."}
-    result = _build_understanding_string(summaries)
+    result = build_understanding_string(summaries)
     assert "mod_a" in result
     assert "mod_b" in result
     assert result.startswith("Project Understanding:")
 
 
 def test_partition_modules_splits_correctly() -> None:
-    from src.graph.nodes.readme.understand import _partition_modules
+    from src.graph.nodes.readme.understand import partition_modules
     from src.utils.fs import hash_content
 
     content_a = "def foo(): pass\ndef bar(): pass"
@@ -96,7 +96,7 @@ def test_partition_modules_splits_correctly() -> None:
     contents = {"mod_a.py": content_a, "mod_b.py": content_b}
     cached_hashes = {"mod_a.py": hash_content(content_a)}
 
-    fresh, cached = _partition_modules(list(contents), cached_hashes, contents)
+    fresh, cached = partition_modules(list(contents), cached_hashes, contents)
 
     assert "mod_b.py" in fresh
     assert "mod_a.py" in cached

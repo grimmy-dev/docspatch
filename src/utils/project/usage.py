@@ -10,18 +10,29 @@ from typing import TypedDict
 
 __all__ = ["UsageExample", "extract_usage_examples"]
 
-_SKIP_NAMES = frozenset({
-    "assert", "mock", "patch", "MagicMock", "setUp", "tearDown",
-    "pytest", "fixture", "mark", "raises", "warns",
-})
+_SKIP_NAMES = frozenset(
+    {
+        "assert",
+        "mock",
+        "patch",
+        "MagicMock",
+        "setUp",
+        "tearDown",
+        "pytest",
+        "fixture",
+        "mark",
+        "raises",
+        "warns",
+    }
+)
 
 
 class UsageExample(TypedDict):
     """A single usage call extracted from tests or main entry points."""
 
-    source: str          # "test" | "main"
-    fn_name: str         # function/class being demonstrated
-    call: str            # unparsed call, truncated to 80 chars
+    source: str  # "test" | "main"
+    fn_name: str  # function/class being demonstrated
+    call: str  # unparsed call, truncated to 80 chars
     context: str | None  # assert/check line that follows, if any
 
 
@@ -52,7 +63,7 @@ def _extract_from_test_file(path: Path) -> list[UsageExample]:
     """Parse a test file and return one UsageExample per unique called function."""
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"))
-    except (OSError, SyntaxError):
+    except (OSError, SyntaxError) as _:
         return []
 
     examples: list[UsageExample] = []
@@ -82,7 +93,7 @@ def _extract_from_main_file(path: Path) -> list[UsageExample]:
     try:
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source)
-    except (OSError, SyntaxError):
+    except (OSError, SyntaxError) as _:
         return []
 
     examples: list[UsageExample] = []

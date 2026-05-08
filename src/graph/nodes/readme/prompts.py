@@ -4,11 +4,53 @@ import re
 from pathlib import Path
 
 from src.schemas.readme_state import ReadmeState
-from src.utils.llm.prompts import README_STYLE
 from src.utils.project.format import MAX_README_CHARS, detect_badges
 from src.utils.readme.analysis import build_targeted_readme_context, extract_readme_headings
 
-__all__ = ["build_readme_prompt"]
+__all__ = ["README_STYLE", "README_SYSTEM", "README_UNDERSTAND_SYSTEM", "build_readme_prompt"]
+
+README_SYSTEM: str = (
+    "You are an expert technical writer and software architect. "
+    "Generate or update a README.md using only the project context provided in the user message. "
+    "Use clear, idiomatic Markdown. Never invent information not present in the context.\n\n"
+    "SCOPE RULE — determined by the 'Scope' line in the user message:\n\n"
+    "If Scope is 'Project Root':\n"
+    "  Write a standard user-facing README.\n"
+    "  Include: project name/description, installation, quickstart, CLI usage, configuration, license.\n"
+    "  Include badges only if explicitly listed in the context.\n\n"
+    "If Scope is a subpackage path (anything other than 'Project Root'):\n"
+    "  Write a DEVELOPER-FACING INTERNAL module README.\n"
+    "  Include: module purpose, architecture, component responsibilities, public API, internal usage examples.\n"
+    "  ABSOLUTELY FORBIDDEN — do not include any of the following:\n"
+    "    - Installation instructions of any kind (pip install, uv add, conda, poetry, etc.)\n"
+    "    - Setup or onboarding steps\n"
+    "    - Badges (PyPI, shields.io, GitHub Actions, coverage, etc.)\n"
+    "    - Any URL you were not explicitly given in the context\n"
+    "    - License section\n"
+    "    - Contributing guide\n"
+    "    - Changelog or release history\n"
+    "    - Global CLI commands or top-level entry points\n"
+    "    - Fabricated links to documentation, issues, or external resources\n"
+    "  The reader is an internal developer with the project already installed.\n\n"
+    "SECTION UPDATE RULE (when 'Existing README' is provided):\n"
+    "  If 'Changed files' are listed → update ONLY sections affected by those files; copy all others verbatim.\n"
+    "  If no changed files are listed → rewrite the entire README.\n\n"
+    "OUTPUT: Return only the final Markdown. No preamble, no explanations, no surrounding code fences."
+)
+
+README_UNDERSTAND_SYSTEM: str = (
+    "You are a code analyst. Read the provided module code and describe its purpose in one sentence. "
+    "Be specific to this codebase — no generic descriptions. "
+    "Focus on what this module does for the user and how it fits in the system."
+)
+
+README_STYLE: dict[str, str] = {
+    "compact": "Minimal README. Root: name, description, install, basic usage. Subpackage: module overview and core responsibilities.",
+    "detailed": (
+        "Full README. Root: badges, description, features, install, usage, config. "
+        "Subpackage: architectural breakdown, deep API usage, and internal design notes."
+    ),
+}
 
 
 def _compute_scope(state: ReadmeState) -> tuple[bool, str]:
@@ -39,19 +81,20 @@ def build_readme_prompt(state: ReadmeState) -> str:
         lines.append(f"Module understanding:\n{state.project_understanding}\n")
 
     # 2–3. Project metadata + dependencies (stable)
-    if state.project_name:
-        lines.append(f"Project: {state.project_name}")
-    if state.project_version:
-        lines.append(f"Version: {state.project_version}")
-    if state.project_description:
-        lines.append(f"Description: {state.project_description}")
+    ctx = state.project_context
+    if ctx.name:
+        lines.append(f"Project: {ctx.name}")
+    if ctx.version:
+        lines.append(f"Version: {ctx.version}")
+    if ctx.description:
+        lines.append(f"Description: {ctx.description}")
     if state.remote_url:
         lines.append(f"Repository: {state.remote_url}")
-    if state.dependencies:
-        dep_names = [re.split(r"[><=!;@ \[]", d)[0] for d in state.dependencies[:20]]
+    if ctx.dependencies:
+        dep_names = [re.split(r"[><=!;@ \[]", d)[0] for d in ctx.dependencies[:20]]
         lines.append(f"Dependencies: {', '.join(dep_names)}")
-    if state.cli_scripts:
-        scripts = ", ".join(f"{k} = {v}" for k, v in state.cli_scripts.items())
+    if ctx.cli_scripts:
+        scripts = ", ".join(f"{k} = {v}" for k, v in ctx.cli_scripts.items())
         lines.append(f"CLI scripts: {scripts}")
     if state.init_docstring:
         lines.append(f"\nModule docstring:\n{state.init_docstring}")
@@ -77,15 +120,17 @@ def build_readme_prompt(state: ReadmeState) -> str:
 
     # 7. Badges (detailed only, stable but verbose)
     if state.style == "detailed":
-        badges = detect_badges(state.remote_url, state.project_name or None, state.project_version, state.license_id)
+        badges = detect_badges(state.remote_url, ctx.name or None, ctx.version, ctx.license_id)
         if badges:
             lines.append("\nInclude these badges near the top:\n" + "\n".join(badges))
         else:
             lines.append("\nDo not include any badges — none could be verified for this project.")
 
     # 8. Git signals / test coverage (dynamic per run)
-    if state.git_signals:
-        lines.append(f"\nGit signals: {state.git_signals}")
+    if state.git_signals is not None:
+        sig = state.git_signals
+        status = "dormant" if sig.is_dormant else "active"
+        lines.append(f"\nGit signals: Commits: {sig.commit_count} · First: {sig.first_commit} · Last: {sig.last_commit} · Status: {status}")
     if state.test_coverage:
         lines.append(f"\n{state.test_coverage}")
 

@@ -6,14 +6,13 @@ import re
 from pathlib import Path
 from typing import Any, cast
 
-from src.graph.nodes.docstring.prompts import build_prompt
+from src.graph.nodes.docstring.prompts import DOCSTRING_SYSTEM, build_prompt
 from src.schemas.function import FunctionMetadata
 from src.schemas.graph_io import BatchDocsUpdate, CollectBatchesUpdate, RerunDocsUpdate
 from src.schemas.llm_outputs import BatchDocstringOutput, DocstringOutput
 from src.schemas.state import DocpatchState
 from src.utils.config import load
 from src.utils.llm.caller import acall_llm, is_cancelled
-from src.utils.llm.prompts import DOCSTRING_SYSTEM
 from src.utils.log import get_logger
 
 __all__ = ["collect_batches", "docwriter_rerun", "docwriter_single"]
@@ -30,9 +29,7 @@ def _read_file_slices(file_path: Path, functions: list[FunctionMetadata]) -> dic
     return {fn.name: "\n".join(lines[fn.start_line - 1 : fn.end_line]) for fn in functions}
 
 
-def _read_batch_slices(
-    batch_ids: list[str], catalog: dict[str, FunctionMetadata]
-) -> dict[Path, dict[str, str]]:
+def _read_batch_slices(batch_ids: list[str], catalog: dict[str, FunctionMetadata]) -> dict[Path, dict[str, str]]:
     """Pre-read all source slices for a batch, grouped by file."""
     by_file: dict[Path, list[FunctionMetadata]] = {}
     for fid in batch_ids:

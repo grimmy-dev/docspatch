@@ -1,10 +1,9 @@
-"""Tests for readme_signals — git signals, test coverage summary, diff detection, headings."""
+"""Tests for readme signals — test coverage summary and README heading extraction."""
 
 from pathlib import Path
-from unittest.mock import MagicMock
 
 from src.utils.readme.analysis import extract_readme_headings
-from src.utils.readme.signals import get_diff_files, get_git_signals, get_test_coverage_summary
+from src.utils.readme.signals import get_test_coverage_summary
 
 # ---------------------------------------------------------------------------
 # get_test_coverage_summary
@@ -85,48 +84,3 @@ def test_skips_h1_and_h4_plus_headings() -> None:
 
 def test_returns_empty_list_on_no_headings() -> None:
     assert extract_readme_headings("No headings here.") == []
-
-
-# ---------------------------------------------------------------------------
-# get_diff_files
-# ---------------------------------------------------------------------------
-
-
-def test_returns_py_files_from_diff(tmp_path: Path) -> None:
-    repo: MagicMock = MagicMock()
-    repo.git.diff.return_value = "src/foo.py\nsrc/bar.py\n"
-    assert get_diff_files(repo, tmp_path) == ["src/foo.py", "src/bar.py"]
-
-
-def test_filters_non_py_files(tmp_path: Path) -> None:
-    repo: MagicMock = MagicMock()
-    repo.git.diff.return_value = "src/foo.py\nREADME.md\nsrc/bar.ts\n"
-    assert get_diff_files(repo, tmp_path) == ["src/foo.py"]
-
-
-def test_diff_returns_empty_on_exception(tmp_path: Path) -> None:
-    repo: MagicMock = MagicMock()
-    repo.git.diff.side_effect = Exception("git error")
-    assert get_diff_files(repo, tmp_path) == []
-
-
-# ---------------------------------------------------------------------------
-# get_git_signals
-# ---------------------------------------------------------------------------
-
-
-def test_git_signals_returns_formatted_summary() -> None:
-    repo: MagicMock = MagicMock()
-    repo.git.rev_list.return_value = "42"
-    repo.git.log.side_effect = ["2026-04-01", "2022-01-01"]
-    result = get_git_signals(repo)
-    assert "Commits: 42" in result
-    assert "First:" in result
-    assert "Last:" in result
-    assert "Status:" in result
-
-
-def test_git_signals_returns_empty_on_exception() -> None:
-    repo: MagicMock = MagicMock()
-    repo.git.rev_list.side_effect = Exception("git error")
-    assert get_git_signals(repo) == ""

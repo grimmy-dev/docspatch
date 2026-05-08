@@ -62,11 +62,7 @@ def map_files_to_sections(changed_files: list[str], headings: list[str]) -> set[
     for heading in headings:
         heading_tokens = _tokenize(heading)
         for ft in file_tokens:
-            if any(
-                ht == ft_tok or ht.startswith(ft_tok) or ft_tok.startswith(ht)
-                for ht in heading_tokens
-                for ft_tok in ft
-            ):
+            if any(ht == ft_tok or ht.startswith(ft_tok) or ft_tok.startswith(ht) for ht in heading_tokens for ft_tok in ft):
                 matched.add(heading)
                 break
     return matched

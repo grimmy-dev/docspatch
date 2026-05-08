@@ -31,7 +31,7 @@ class ChangelogState(PipelineState):
     nothing_to_document: bool = False  # gate for _after_context → skips clg_llm when True
 
     # Pipeline state
-    generated_entry: str = ""          # written by: clg_llm
+    generated_entry: str = ""  # written by: clg_llm
     accepted_entry: str | None = None  # written by: clg_preview
 
     @property

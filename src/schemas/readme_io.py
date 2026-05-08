@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TypedDict
 
+from src.utils.git.reader import GitSignals
 from src.utils.project.usage import UsageExample
 
 __all__ = [
@@ -33,19 +34,14 @@ class ProjectContext:
 class ReadmeContextUpdate(TypedDict, total=False):
     """Returned by readme_context."""
 
-    project_name: str
-    project_version: str | None
-    project_description: str | None
-    dependencies: list[str]
-    cli_scripts: dict[str, str]
+    project_context: ProjectContext
     remote_url: str | None
     dir_tree: str
     init_docstring: str | None
     existing_readme: str | None
     readme_was_truncated: bool
-    license_id: str | None
     public_api: dict[str, list[str]]
-    git_signals: str
+    git_signals: GitSignals | None
     test_coverage: str
     usage_examples: list[UsageExample]
     repo_root: Path | None
